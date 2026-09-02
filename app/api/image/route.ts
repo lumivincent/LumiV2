@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getWorkspace, readAsset, saveGeneratedAsset, type CreationTurn } from '@/lib/workspace-store';
 import { openAIFetch, openAITransport } from '@/lib/openai-fetch';
+import { codexExecutionAvailable } from '@/lib/runtime-capabilities';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -54,7 +55,7 @@ async function imageDataFromResponse(result: ImageResponse) {
 }
 
 export async function GET() {
-  return NextResponse.json({ configured: Boolean(process.env.OPENAI_API_KEY), model: 'gpt-image-2', conversationModel: process.env.OPENAI_IMAGE_CONVERSATION_MODEL || 'gpt-5.6', transport: openAITransport() });
+  return NextResponse.json({ configured: Boolean(process.env.OPENAI_API_KEY), codexAvailable: codexExecutionAvailable(), model: 'gpt-image-2', conversationModel: process.env.OPENAI_IMAGE_CONVERSATION_MODEL || 'gpt-5.6', transport: openAITransport() });
 }
 
 export async function POST(request: NextRequest) {

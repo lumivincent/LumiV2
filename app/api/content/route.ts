@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getWorkspace } from '@/lib/workspace-store';
 import { openAIFetch, openAITransport } from '@/lib/openai-fetch';
+import { codexExecutionAvailable } from '@/lib/runtime-capabilities';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -77,6 +78,7 @@ function structuredJson<T>(value: string): T {
 export async function GET() {
   return NextResponse.json({
     configured: Boolean(process.env.OPENAI_API_KEY),
+    codexAvailable: codexExecutionAvailable(),
     model: process.env.OPENAI_TEXT_MODEL || DEFAULT_MODEL,
     transport: openAITransport(),
   }, { headers: { 'Cache-Control': 'no-store' } });

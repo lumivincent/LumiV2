@@ -61,6 +61,7 @@ V2 仍处于 Early Prototype。现阶段的运营主线是持续理解产品变�
 - Railway 线上数据以 Volume 为准，不自动回写 GitHub；GitHub 保存代码和首次初始化内容，Volume 需要独立备份
 - 线上访问通过 `APP_ACCESS_USERNAME` 与 `APP_ACCESS_PASSWORD` 提供基础保护；未设置密码时不启用保护
 - Railway 不使用本机代理变量，OpenAI 请求直接使用服务端 `OPENAI_API_KEY`
+- Railway 托管版只开放 OpenAI API 执行方式，前端隐藏 Codex 入口，服务端也拒绝 Codex 执行请求；本地工作台继续保留 Codex 与 API 双模式
 
 ## 内容工作方式
 

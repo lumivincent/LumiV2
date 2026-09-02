@@ -26,6 +26,7 @@ APP_ACCESS_PASSWORD=为团队设置的强密码
 - 不要在 Railway 配置本机使用的 `OPENAI_PROXY_URL`、`HTTP_PROXY` 或 `HTTPS_PROXY`。
 - `OPENAI_API_KEY` 和 `APP_ACCESS_PASSWORD` 应在 Railway 中设为 sealed variables。
 - 如果未配置 `APP_ACCESS_PASSWORD`，网页和接口不会启用访问保护。
+- Railway 会根据平台环境自动关闭 Codex 执行入口，只使用 OpenAI API；无需额外配置。只有特殊自托管环境才应显式设置 `LUMITERRA_CODEX_ENABLED=true`。
 
 ## 3. 添加持久化 Volume
 

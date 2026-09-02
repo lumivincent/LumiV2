@@ -392,6 +392,7 @@ button { cursor:pointer; }
 .content-complete-state strong,.asset-complete-state strong { font-size:10px; }
 .content-complete-state>div:last-child,.asset-complete-state>div:last-child { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:6px; }
 .content-complete-state button,.asset-complete-state button { padding:8px 10px; border:1px solid var(--line); border-radius:5px; background:white; font-size:9px; }
+.content-complete-state button.primary,.asset-complete-state button.primary { border-color:var(--ink); background:var(--ink); color:white; }
 .content-savebar button.primary { background:var(--ink); color:white; }
 
 .assets-layout { margin-top:12px; display:grid; grid-template-columns:320px minmax(0,1fr); gap:10px; align-items:start; }
