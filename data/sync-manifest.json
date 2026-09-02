@@ -1,0 +1,18 @@
+{
+  "source": "https://lumiterra-balance-lab.vercel.app",
+  "checkedAt": "2026-08-26T03:52:27.832Z",
+  "documents": {
+    "requirements.md": {
+      "url": "https://lumiterra-balance-lab.vercel.app/requirements.md",
+      "hash": "ce0fbc42f5c1ed86b001404fc89c22242eab3ddca407d307af7b44a11b4e061a",
+      "changed": true,
+      "lastChangedAt": "2026-08-26T03:52:27.832Z"
+    },
+    "numeric-core.md": {
+      "url": "https://lumiterra-balance-lab.vercel.app/numeric-core.md",
+      "hash": "b281628c67e806edf6c32ed958da7cdecf6e1eddd24c6b0be4f72871c6f070e5",
+      "changed": true,
+      "lastChangedAt": "2026-08-26T03:52:27.832Z"
+    }
+  }
+}

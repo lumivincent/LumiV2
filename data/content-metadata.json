@@ -1,0 +1,45 @@
+[
+  {
+    "path": "outputs/twitter/2026-08-31T07-15-30-902Z-api-ok.md",
+    "status": "draft",
+    "format": "post",
+    "language": "en",
+    "instruction": "测试一下，帮我基于最新的V2内容设计一条概念版的 推文，无需对机制做过度介绍，神秘感，crypto风格，从 全链角度出发，控制在3句话文成，给我3个方案",
+    "createdAt": "2026-08-31T07:15:30.898Z",
+    "updatedAt": "2026-09-02T02:46:17.870Z",
+    "sourceHashes": {
+      "requirements": "9b64f3c7bccf5a0a2f65628f6aa8cdb292d1cbd6b6831e6a8c3071b7cddd0966",
+      "numeric": "957385082ba8c8df4511b1aa6be378c6a47891def48cea1c698edab17b1f0a19"
+    },
+    "reviewRequired": false,
+    "generator": "api",
+    "model": "gpt-5.6-terra",
+    "apiUsage": {
+      "inputTokens": 11769,
+      "outputTokens": 22,
+      "cachedTokens": 7178
+    },
+    "apiResponseId": "resp_06dd693f5e27213a006a978df8553487d0b8025e215bb72037",
+    "conversationTurns": [
+      {
+        "id": "1788160528997-v9as67",
+        "instruction": "生成一个最推荐版本",
+        "provider": "api",
+        "createdAt": "2026-08-31T07:15:28.997Z"
+      },
+      {
+        "id": "1788317140400-e65bqj",
+        "instruction": "生成一个最推荐版本",
+        "provider": "api",
+        "createdAt": "2026-09-02T02:45:40.400Z"
+      },
+      {
+        "id": "1788317175986-atv09u",
+        "instruction": "缩短内容，保留最重要的信息和行动感",
+        "provider": "api",
+        "createdAt": "2026-09-02T02:46:15.986Z"
+      }
+    ],
+    "knowledgePaths": []
+  }
+]

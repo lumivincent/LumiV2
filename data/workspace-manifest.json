@@ -1,0 +1,15 @@
+{
+  "lastSyncAt": "2026-09-02T01:30:57.265Z",
+  "sources": {
+    "requirements": {
+      "url": "https://lumiterra-balance-lab.vercel.app/requirements.md",
+      "hash": "9b64f3c7bccf5a0a2f65628f6aa8cdb292d1cbd6b6831e6a8c3071b7cddd0966",
+      "updatedAt": "2026-09-02T01:30:57.265Z"
+    },
+    "numeric": {
+      "url": "https://lumiterra-balance-lab.vercel.app/numeric-core.md",
+      "hash": "957385082ba8c8df4511b1aa6be378c6a47891def48cea1c698edab17b1f0a19",
+      "updatedAt": "2026-09-02T01:30:57.265Z"
+    }
+  }
+}
