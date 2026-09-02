@@ -1,5 +1,223 @@
 [
   {
+    "path": "outputs/assets/2026-09-02T03-43-31-912Z-内容配图.png",
+    "title": "内容配图",
+    "source": "generated",
+    "generator": "api",
+    "status": "draft",
+    "createdAt": "2026-09-02T03:43:31.922Z",
+    "usage": "Key Visual",
+    "prompt": "素材类型：图片\n创作来源：独立制作\n用途：Key Visual\n画面目标：附件参考图有两张我们做的HD2D的风格，帮我基于这种形式，用第三张底图作为背景，设计这种HD2D风格的海报，核心理念是突出世界在变化  可以适当用参考资料的一些角色素材，底图只是背景不要任何文案\n规格：9:16\n本轮调整：目前看还是V1效果最接近 只是地图不完整，多了一些不必要的角色\n补充要求：无\n参考素材：outputs/assets/2026-09-02T03-32-43-370Z-内容配图.png\n内容关联：无\n\n请使用所附参考图片中的角色、世界观、配色或构图信息；保持官方视觉一致，不要伪造或自行重绘不确定的 Logo。只生成一个图片版本。",
+    "references": [
+      "outputs/assets/2026-09-02T03-32-43-370Z-内容配图.png"
+    ],
+    "parentPath": "outputs/assets/2026-09-02T03-32-43-370Z-内容配图.png",
+    "groupId": "内容配图",
+    "version": 5,
+    "creationSource": "independent",
+    "linkedContentPaths": [],
+    "apiResponseId": "resp_008997722ef07beb006a979b28be9887d0b063d181bcbf1895",
+    "conversationTurns": [
+      {
+        "id": "1788319904725-ogh4lm",
+        "instruction": "首次生成：附件参考图有两张我们做的HD2D的风格，帮我基于这种形式，用第三张底图作为背景，设计这种HD2D风格的海报，核心理念是突出世界在变化  可以适当用参考资料的一些角色素材，底图只是背景不要任何文案",
+        "provider": "api",
+        "createdAt": "2026-09-02T03:31:44.725Z"
+      },
+      {
+        "id": "1788320551434-vw7rbp",
+        "instruction": "目前看还是V1效果最接近 只是地图不完整，多了一些不必要的角色",
+        "provider": "api",
+        "createdAt": "2026-09-02T03:42:31.434Z"
+      }
+    ],
+    "conversationSummary": "",
+    "knowledgePaths": []
+  },
+  {
+    "path": "outputs/assets/2026-09-02T03-39-11-637Z-内容配图.png",
+    "title": "内容配图",
+    "source": "generated",
+    "generator": "api",
+    "status": "draft",
+    "createdAt": "2026-09-02T03:39:11.650Z",
+    "usage": "Key Visual",
+    "prompt": "素材类型：图片\n创作来源：独立制作\n用途：Key Visual\n画面目标：附件参考图有两张我们做的HD2D的风格，帮我基于这种形式，用第三张底图作为背景，设计这种HD2D风格的海报，核心理念是突出世界在变化  可以适当用参考资料的一些角色素材，底图只是背景不要任何文案\n规格：9:16\n本轮调整：我觉得这次设计的 把核心太突出树林了，还是要先分析原图的地形，然后做HD2D改造\n补充要求：无\n参考素材：outputs/assets/2026-09-02T03-36-48-462Z-内容配图.png、outputs/assets/2026-09-02T03-29-25-670Z-group-57.jpg\n内容关联：无\n\n请使用所附参考图片中的角色、世界观、配色或构图信息；保持官方视觉一致，不要伪造或自行重绘不确定的 Logo。只生成一个图片版本。",
+    "references": [
+      "outputs/assets/2026-09-02T03-36-48-462Z-内容配图.png",
+      "outputs/assets/2026-09-02T03-29-25-670Z-group-57.jpg"
+    ],
+    "parentPath": "outputs/assets/2026-09-02T03-36-48-462Z-内容配图.png",
+    "groupId": "内容配图",
+    "version": 4,
+    "creationSource": "independent",
+    "linkedContentPaths": [],
+    "apiResponseId": "resp_02770bd2c0865dbe006a979a289e5087d0ac471a9e2be7c144",
+    "conversationTurns": [
+      {
+        "id": "1788319904725-ogh4lm",
+        "instruction": "首次生成：附件参考图有两张我们做的HD2D的风格，帮我基于这种形式，用第三张底图作为背景，设计这种HD2D风格的海报，核心理念是突出世界在变化  可以适当用参考资料的一些角色素材，底图只是背景不要任何文案",
+        "provider": "api",
+        "createdAt": "2026-09-02T03:31:44.725Z"
+      },
+      {
+        "id": "1788320012702-ft7nzx",
+        "instruction": "不要角色了，给我完整底图，尺寸按照9:16",
+        "provider": "api",
+        "createdAt": "2026-09-02T03:33:32.702Z"
+      },
+      {
+        "id": "1788320149888-onbfx8",
+        "instruction": "还是要在保证基础底图的形态下，做HD2D风格的改造， 其实就是给人耳目一新 吊炸了感觉，从底图更新猜测官方要做什么事，所以这个风格的图一定要好看",
+        "provider": "api",
+        "createdAt": "2026-09-02T03:35:49.888Z"
+      },
+      {
+        "id": "1788320296110-1nlwtw",
+        "instruction": "我觉得这次设计的 把核心太突出树林了，还是要先分析原图的地形，然后做HD2D改造",
+        "provider": "api",
+        "createdAt": "2026-09-02T03:38:16.110Z"
+      }
+    ],
+    "conversationSummary": "",
+    "knowledgePaths": []
+  },
+  {
+    "path": "outputs/assets/2026-09-02T03-36-48-462Z-内容配图.png",
+    "title": "内容配图",
+    "source": "generated",
+    "generator": "api",
+    "status": "draft",
+    "createdAt": "2026-09-02T03:36:48.489Z",
+    "usage": "Key Visual",
+    "prompt": "素材类型：图片\n创作来源：独立制作\n用途：Key Visual\n画面目标：附件参考图有两张我们做的HD2D的风格，帮我基于这种形式，用第三张底图作为背景，设计这种HD2D风格的海报，核心理念是突出世界在变化  可以适当用参考资料的一些角色素材，底图只是背景不要任何文案\n规格：9:16\n本轮调整：还是要在保证基础底图的形态下，做HD2D风格的改造， 其实就是给人耳目一新 吊炸了感觉，从底图更新猜测官方要做什么事，所以这个风格的图一定要好看\n补充要求：无\n参考素材：outputs/assets/2026-09-02T03-34-30-060Z-内容配图.png、outputs/assets/2026-09-02T03-29-25-670Z-group-57.jpg\n内容关联：无\n\n请使用所附参考图片中的角色、世界观、配色或构图信息；保持官方视觉一致，不要伪造或自行重绘不确定的 Logo。只生成一个图片版本。",
+    "references": [
+      "outputs/assets/2026-09-02T03-34-30-060Z-内容配图.png",
+      "outputs/assets/2026-09-02T03-29-25-670Z-group-57.jpg"
+    ],
+    "parentPath": "outputs/assets/2026-09-02T03-34-30-060Z-内容配图.png",
+    "groupId": "内容配图",
+    "version": 3,
+    "creationSource": "independent",
+    "linkedContentPaths": [],
+    "apiResponseId": "resp_02770bd2c0865dbe006a9799962e0087d0b9faf4fe752d8479",
+    "conversationTurns": [
+      {
+        "id": "1788319904725-ogh4lm",
+        "instruction": "首次生成：附件参考图有两张我们做的HD2D的风格，帮我基于这种形式，用第三张底图作为背景，设计这种HD2D风格的海报，核心理念是突出世界在变化  可以适当用参考资料的一些角色素材，底图只是背景不要任何文案",
+        "provider": "api",
+        "createdAt": "2026-09-02T03:31:44.725Z"
+      },
+      {
+        "id": "1788320012702-ft7nzx",
+        "instruction": "不要角色了，给我完整底图，尺寸按照9:16",
+        "provider": "api",
+        "createdAt": "2026-09-02T03:33:32.702Z"
+      },
+      {
+        "id": "1788320149888-onbfx8",
+        "instruction": "还是要在保证基础底图的形态下，做HD2D风格的改造， 其实就是给人耳目一新 吊炸了感觉，从底图更新猜测官方要做什么事，所以这个风格的图一定要好看",
+        "provider": "api",
+        "createdAt": "2026-09-02T03:35:49.888Z"
+      }
+    ],
+    "conversationSummary": "",
+    "knowledgePaths": []
+  },
+  {
+    "path": "outputs/assets/2026-09-02T03-34-30-060Z-内容配图.png",
+    "title": "内容配图",
+    "source": "generated",
+    "generator": "api",
+    "status": "draft",
+    "createdAt": "2026-09-02T03:34:30.070Z",
+    "usage": "Key Visual",
+    "prompt": "素材类型：图片\n创作来源：独立制作\n用途：Key Visual\n画面目标：附件参考图有两张我们做的HD2D的风格，帮我基于这种形式，用第三张底图作为背景，设计这种HD2D风格的海报，核心理念是突出世界在变化  可以适当用参考资料的一些角色素材，底图只是背景不要任何文案\n规格：9:16\n本轮调整：不要角色了，给我完整底图，尺寸按照9:16\n补充要求：无\n参考素材：outputs/assets/2026-09-02T03-32-43-370Z-内容配图.png\n内容关联：无\n\n请使用所附参考图片中的角色、世界观、配色或构图信息；保持官方视觉一致，不要伪造或自行重绘不确定的 Logo。只生成一个图片版本。",
+    "references": [
+      "outputs/assets/2026-09-02T03-32-43-370Z-内容配图.png"
+    ],
+    "parentPath": "outputs/assets/2026-09-02T03-32-43-370Z-内容配图.png",
+    "groupId": "内容配图",
+    "version": 2,
+    "creationSource": "independent",
+    "linkedContentPaths": [],
+    "apiResponseId": "resp_02770bd2c0865dbe006a97990e292887d09f2f2e512375c686",
+    "conversationTurns": [
+      {
+        "id": "1788319904725-ogh4lm",
+        "instruction": "首次生成：附件参考图有两张我们做的HD2D的风格，帮我基于这种形式，用第三张底图作为背景，设计这种HD2D风格的海报，核心理念是突出世界在变化  可以适当用参考资料的一些角色素材，底图只是背景不要任何文案",
+        "provider": "api",
+        "createdAt": "2026-09-02T03:31:44.725Z"
+      },
+      {
+        "id": "1788320012702-ft7nzx",
+        "instruction": "不要角色了，给我完整底图，尺寸按照9:16",
+        "provider": "api",
+        "createdAt": "2026-09-02T03:33:32.702Z"
+      }
+    ],
+    "conversationSummary": "",
+    "knowledgePaths": []
+  },
+  {
+    "path": "outputs/assets/2026-09-02T03-32-43-370Z-内容配图.png",
+    "title": "内容配图",
+    "source": "generated",
+    "generator": "api",
+    "status": "draft",
+    "createdAt": "2026-09-02T03:32:43.501Z",
+    "usage": "Key Visual",
+    "prompt": "素材类型：图片\n创作来源：独立制作\n用途：Key Visual\n画面目标：附件参考图有两张我们做的HD2D的风格，帮我基于这种形式，用第三张底图作为背景，设计这种HD2D风格的海报，核心理念是突出世界在变化  可以适当用参考资料的一些角色素材，底图只是背景不要任何文案\n规格：16:9\n补充要求：无\n参考素材：outputs/assets/2026-09-02T03-29-25-373Z-20260902-112730.png、outputs/assets/2026-09-02T03-29-25-446Z-20260902-112718.jpg、outputs/assets/2026-09-02T03-29-25-670Z-group-57.jpg\n内容关联：无\n\n请使用所附参考图片中的角色、世界观、配色或构图信息；保持官方视觉一致，不要伪造或自行重绘不确定的 Logo。只生成一个图片版本。",
+    "references": [
+      "outputs/assets/2026-09-02T03-29-25-373Z-20260902-112730.png",
+      "outputs/assets/2026-09-02T03-29-25-446Z-20260902-112718.jpg",
+      "outputs/assets/2026-09-02T03-29-25-670Z-group-57.jpg"
+    ],
+    "groupId": "内容配图",
+    "version": 1,
+    "creationSource": "independent",
+    "linkedContentPaths": [],
+    "conversationTurns": [
+      {
+        "id": "1788319904725-ogh4lm",
+        "instruction": "首次生成：附件参考图有两张我们做的HD2D的风格，帮我基于这种形式，用第三张底图作为背景，设计这种HD2D风格的海报，核心理念是突出世界在变化  可以适当用参考资料的一些角色素材，底图只是背景不要任何文案",
+        "provider": "api",
+        "createdAt": "2026-09-02T03:31:44.725Z"
+      }
+    ],
+    "conversationSummary": "",
+    "knowledgePaths": []
+  },
+  {
+    "path": "outputs/assets/2026-09-02T03-29-25-670Z-group-57.jpg",
+    "title": "Group 57",
+    "source": "upload",
+    "createdAt": "2026-09-02T03:29:25.675Z",
+    "role": "未分类"
+  },
+  {
+    "path": "outputs/assets/2026-09-02T03-29-25-446Z-20260902-112718.jpg",
+    "title": "20260902-112718",
+    "source": "upload",
+    "createdAt": "2026-09-02T03:29:25.532Z",
+    "role": "未分类"
+  },
+  {
+    "path": "outputs/assets/2026-09-02T03-29-25-373Z-20260902-112730.png",
+    "title": "20260902-112730",
+    "source": "upload",
+    "createdAt": "2026-09-02T03:29:25.382Z",
+    "role": "未分类"
+  },
+  {
+    "path": "outputs/assets/2026-08-27T11-32-04-215Z-character-12.jpg",
+    "title": "character-12",
+    "source": "upload",
+    "createdAt": "2026-08-27T11:32:04.217Z",
+    "role": "未分类",
+    "defaultReference": false
+  },
+  {
     "path": "outputs/assets/2026-08-31T07-17-43-148Z-api-图片连通性测试.png",
     "title": "API 图片连通性测试",
     "source": "generated",
@@ -154,14 +372,6 @@
     "source": "upload",
     "createdAt": "2026-08-27T11:37:35.804Z",
     "role": "未分类"
-  },
-  {
-    "path": "outputs/assets/2026-08-27T11-32-04-215Z-character-12.jpg",
-    "title": "character-12",
-    "source": "upload",
-    "createdAt": "2026-08-27T11:32:04.217Z",
-    "role": "未分类",
-    "defaultReference": true
   },
   {
     "path": "outputs/assets/2026-08-27T11-33-23-013Z-logo-lumi-text.png",

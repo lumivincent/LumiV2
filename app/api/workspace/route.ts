@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createKnowledgeItem, createRecord, createRequest, getWorkspace, recordKnowledgeUsage, registerGeneratedAsset, saveAssistantSession, saveContent, saveMemory, saveOutput, setAssetReference, syncSources, updateAssetMetadata, updateContentStatus, updateKnowledgeStatus, uploadAsset, type AssistantMessage, type CreationTurn, type KnowledgeItemType, type KnowledgeStatus } from '@/lib/workspace-store';
+import { createKnowledgeItem, createRecord, createRequest, deleteMarketingItem, getWorkspace, recordKnowledgeUsage, registerGeneratedAsset, saveAssistantSession, saveContent, saveMarketingItem, saveMemory, saveOutput, setAssetReference, syncSources, updateAssetMetadata, updateContentStatus, updateKnowledgeStatus, uploadAsset, type AssistantMessage, type CreationTurn, type KnowledgeItemType, type KnowledgeStatus } from '@/lib/workspace-store';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -83,6 +83,26 @@ export async function POST(request: NextRequest) {
     if (body.action === 'recordKnowledgeUsage') {
       return NextResponse.json(await recordKnowledgeUsage({ knowledgePaths: Array.isArray(body.knowledgePaths) ? body.knowledgePaths.map(String) : [], targetPath: body.targetPath ? String(body.targetPath) : undefined }) ?? {});
     }
+    if (body.action === 'saveMarketingItem') {
+      const kind = body.kind === 'todo' ? 'todo' : 'timeline';
+      return NextResponse.json(await saveMarketingItem({
+        kind,
+        id: body.id ? String(body.id) : undefined,
+        title: String(body.title ?? ''),
+        startDate: body.startDate ? String(body.startDate) : undefined,
+        endDate: body.endDate ? String(body.endDate) : undefined,
+        dueDate: body.dueDate ? String(body.dueDate) : undefined,
+        status: body.status ? String(body.status) : undefined,
+        notes: body.notes ? String(body.notes) : undefined,
+        tags: Array.isArray(body.tags) ? body.tags.map(String) : [],
+        timelineId: body.timelineId ? String(body.timelineId) : undefined,
+        contentPaths: Array.isArray(body.contentPaths) ? body.contentPaths.map(String) : [],
+        assetPaths: Array.isArray(body.assetPaths) ? body.assetPaths.map(String) : [],
+      }));
+    }
+    if (body.action === 'deleteMarketingItem') {
+      return NextResponse.json(await deleteMarketingItem(body.kind === 'todo' ? 'todo' : 'timeline', String(body.id ?? '')));
+    }
     if (body.action === 'updateKnowledgeStatus') {
       const statuses: KnowledgeStatus[] = ['inbox', 'processed', 'recorded', 'active', 'draft', 'reviewed', 'adopted', 'rejected', 'superseded', 'proposed', 'running', 'completed', 'stopped', 'archived'];
       if (!statuses.includes(body.status as KnowledgeStatus)) throw new Error('未知知识状态');
@@ -105,6 +125,7 @@ export async function POST(request: NextRequest) {
         content: String(body.content ?? ''),
         instruction: body.instruction ? String(body.instruction) : undefined,
         temporaryContext: body.temporaryContext ? String(body.temporaryContext) : undefined,
+        creativeDirection: body.creativeDirection ? String(body.creativeDirection) : undefined,
         format,
         language,
         status,
@@ -120,6 +141,7 @@ export async function POST(request: NextRequest) {
         conversationTurns: creationTurns(body.conversationTurns),
         conversationSummary: body.conversationSummary ? String(body.conversationSummary) : undefined,
         knowledgePaths: Array.isArray(body.knowledgePaths) ? body.knowledgePaths.map(String) : [],
+        versionAction: body.versionAction ? String(body.versionAction) : undefined,
       }));
     }
     if (body.action === 'updateContentStatus') {

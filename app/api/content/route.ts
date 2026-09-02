@@ -5,8 +5,17 @@ import { openAIFetch, openAITransport } from '@/lib/openai-fetch';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const DEFAULT_MODEL = 'gpt-5.6-terra';
-const MAX_SOURCE_CONTEXT = 16_000;
+const DEFAULT_MODEL = 'gpt-5.6-sol';
+const MAX_SOURCE_CONTEXT = 8_000;
+
+type ContentMode = 'explore' | 'refine' | 'fact_check';
+type ContentCandidate = { id: string; label: string; angle: string; content: string };
+type FactCheckResult = {
+  status: 'pass' | 'needs_changes';
+  summary: string;
+  issues: Array<{ severity: 'high' | 'medium' | 'low'; issue: string; basis: string }>;
+  correctedContent: string;
+};
 
 type ResponsesResult = {
   id?: string;
@@ -60,6 +69,11 @@ function responseText(result: ResponsesResult) {
     .join('\n\n') ?? '';
 }
 
+function structuredJson<T>(value: string): T {
+  const normalized = value.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+  return JSON.parse(normalized) as T;
+}
+
 export async function GET() {
   return NextResponse.json({
     configured: Boolean(process.env.OPENAI_API_KEY),
@@ -73,7 +87,8 @@ export async function POST(request: NextRequest) {
     const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) throw new Error('尚未配置 OpenAI API Key');
     const body = await request.json() as Record<string, unknown>;
-    const action = String(body.action ?? '生成一个最推荐版本').trim().slice(0, 500);
+    const mode: ContentMode = body.mode === 'explore' || body.mode === 'fact_check' ? body.mode : 'refine';
+    const action = String(body.action ?? (mode === 'explore' ? '探索三个创意方向' : mode === 'fact_check' ? '定稿前事实检查' : '继续精修当前版本')).trim().slice(0, 500);
     const instruction = String(body.instruction ?? '').trim().slice(0, 20_000);
     const temporaryContext = String(body.temporaryContext ?? '').trim().slice(0, 30_000);
     const draft = String(body.draft ?? '').trim().slice(0, 60_000);
@@ -94,11 +109,11 @@ export async function POST(request: NextRequest) {
       .filter((path) => approvedPaths.has(path))
       .flatMap((path) => {
         const file = workspace.outputs.find((item) => item.path === path);
-        return file?.content ? [`【已定稿表达 · ${file.path}】\n${file.content.slice(0, 4_000)}`] : [];
+        return file?.content ? [`【已定稿表达 · ${file.path}】\n${file.content.slice(0, 2_000)}`] : [];
       })
       .join('\n\n');
     const relevantSources = sourceContext(workspace.sources, query);
-    let remainingKnowledge = 18_000;
+    let remainingKnowledge = 8_000;
     const selectedKnowledge = knowledgePaths.map((path) => {
       if (remainingKnowledge <= 0) return '';
       const metadata = workspace.knowledgeMetadata.find((item) => item.path === path && item.status !== 'archived');
@@ -118,11 +133,78 @@ export async function POST(request: NextRequest) {
       temporaryContext ? `本次临时背景、热点或链接：\n${temporaryContext}` : '',
       draft ? `当前草稿：\n${draft}` : '',
       conversationSummary ? `前序创作会话中已经确认的要求：\n${conversationSummary}` : '',
-      `当前项目记忆：\n${workspace.memory.current.slice(0, 8_000)}`,
+      `当前项目记忆：\n${workspace.memory.current.slice(0, 3_500)}`,
       `与本次任务相关的最新产品原文：\n${relevantSources || '暂无可用片段'}`,
       selectedKnowledge ? `用户明确选择的知识库参考：\n${selectedKnowledge}` : '',
       approvedContent ? `相关的已定稿或已发布表达：\n${approvedContent}` : '当前没有匹配的已定稿表达。',
     ].filter(Boolean).join('\n\n');
+
+    const modeInstruction = mode === 'explore'
+      ? [
+        '这是方向探索，不是润色。生成恰好三个核心判断、情绪触发和开头 Hook 都明显不同的方向；不得只做近义改写。',
+        '每个方向包含简短名称、为什么值得选的角度说明，以及一份可直接发布的完整正文。',
+        '正文应让人感到这是 Lumiterra 独有的表达，避免 Monad knows、something is coming 等通用 Crypto 占位口号。',
+      ].join('\n')
+      : mode === 'fact_check'
+      ? [
+        '这是定稿前检查，不要静默覆盖用户正文。逐项核对当前草稿与最新产品原文。',
+        '说明是否可以发布、具体风险及对应依据，并提供一份只修正事实风险、不随意改变创意方向的修正版。',
+      ].join('\n')
+      : [
+        '这是已选方向上的单线精修。只输出一个完整新版。',
+        '严格执行本次操作；除非用户明确要求，不改变核心观点、叙事方向、已确认事实和有效表达。',
+        '把前序反馈理解为取舍：保留用户认可的部分，避免再次引入已经拒绝的表达。',
+      ].join('\n');
+    const text = mode === 'explore' ? {
+      verbosity: 'low',
+      format: {
+        type: 'json_schema',
+        name: 'lumiterra_content_directions',
+        strict: true,
+        schema: {
+          type: 'object',
+          properties: {
+            candidates: {
+              type: 'array', minItems: 3, maxItems: 3,
+              items: {
+                type: 'object', additionalProperties: false,
+                properties: { label: { type: 'string' }, angle: { type: 'string' }, content: { type: 'string' } },
+                required: ['label', 'angle', 'content'],
+              },
+            },
+          },
+          required: ['candidates'], additionalProperties: false,
+        },
+      },
+    } : mode === 'fact_check' ? {
+      verbosity: 'low',
+      format: {
+        type: 'json_schema',
+        name: 'lumiterra_content_fact_check',
+        strict: true,
+        schema: {
+          type: 'object', additionalProperties: false,
+          properties: {
+            status: { type: 'string', enum: ['pass', 'needs_changes'] },
+            summary: { type: 'string' },
+            issues: {
+              type: 'array',
+              items: {
+                type: 'object', additionalProperties: false,
+                properties: {
+                  severity: { type: 'string', enum: ['high', 'medium', 'low'] },
+                  issue: { type: 'string' },
+                  basis: { type: 'string' },
+                },
+                required: ['severity', 'issue', 'basis'],
+              },
+            },
+            correctedContent: { type: 'string' },
+          },
+          required: ['status', 'summary', 'issues', 'correctedContent'],
+        },
+      },
+    } : { verbosity: 'low' };
 
     const response = await openAIFetch('https://api.openai.com/v1/responses', {
       method: 'POST',
@@ -130,18 +212,18 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         model,
         store: true,
-        ...(previousResponseId ? { previous_response_id: previousResponseId } : {}),
+        ...(mode === 'refine' && previousResponseId ? { previous_response_id: previousResponseId } : {}),
         instructions: [
           '你是 Lumiterra V2 的 Crypto/Web3 运营内容编辑。',
           '最新产品原文是事实来源；项目记忆和定稿内容只用于运营边界与表达风格。',
           '知识库内容是研究资料和运营判断，只能作为参考，不能覆盖或替代最新产品原文。',
           '区分已确认事实、运营表达和待确认信息；不得承诺未经确认的日期、数值、Token 收益或结果。',
-          '只输出一个可直接继续编辑和发布的推荐版本。不要输出内容标题、方案解释、分析过程或多个方向。',
           '保持自然、具体、Crypto Native，避免空泛宣传语和明显 AI 腔。',
+          modeInstruction,
         ].join('\n'),
         input,
         reasoning: { effort: 'low' },
-        text: { verbosity: 'low' },
+        text,
         max_output_tokens: 3_000,
         prompt_cache_key: 'lumiterra-v2-content-v1',
       }),
@@ -150,8 +232,34 @@ export async function POST(request: NextRequest) {
     if (!response.ok) throw new Error(result.error?.message || 'OpenAI API 内容生成失败');
     const content = responseText(result);
     if (!content) throw new Error('OpenAI API 没有返回可用内容');
+    let candidates: ContentCandidate[] | undefined;
+    let factCheck: FactCheckResult | undefined;
+    if (mode === 'explore') {
+      const parsed = structuredJson<{ candidates?: Array<{ label?: string; angle?: string; content?: string }> }>(content);
+      candidates = (parsed.candidates ?? []).slice(0, 3).map((candidate, index) => ({
+        id: String.fromCharCode(65 + index),
+        label: String(candidate.label ?? `方向 ${index + 1}`).trim().slice(0, 80),
+        angle: String(candidate.angle ?? '').trim().slice(0, 500),
+        content: String(candidate.content ?? '').trim().slice(0, 20_000),
+      })).filter((candidate) => candidate.content);
+      if (candidates.length !== 3) throw new Error('模型没有返回三个完整方向，请重试');
+    } else if (mode === 'fact_check') {
+      const parsed = structuredJson<FactCheckResult>(content);
+      factCheck = {
+        status: parsed.status === 'pass' ? 'pass' : 'needs_changes',
+        summary: String(parsed.summary ?? '').trim().slice(0, 2_000),
+        issues: (Array.isArray(parsed.issues) ? parsed.issues : []).slice(0, 12).map((issue) => ({
+          severity: issue.severity === 'high' || issue.severity === 'medium' ? issue.severity : 'low',
+          issue: String(issue.issue ?? '').trim().slice(0, 1_000),
+          basis: String(issue.basis ?? '').trim().slice(0, 2_000),
+        })),
+        correctedContent: String(parsed.correctedContent ?? '').trim().slice(0, 60_000),
+      };
+    }
     return NextResponse.json({
-      content,
+      content: mode === 'refine' ? content : undefined,
+      candidates,
+      factCheck,
       model: result.model || model,
       responseId: result.id,
       usage: {

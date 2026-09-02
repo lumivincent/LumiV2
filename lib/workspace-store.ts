@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { basename, extname, join, relative, resolve } from 'node:path';
 
@@ -17,6 +17,7 @@ const KNOWLEDGE_METADATA_PATH = join(ROOT, 'data', 'knowledge-metadata.json');
 const KNOWLEDGE_USAGE_PATH = join(ROOT, 'data', 'knowledge-usage.json');
 const KNOWLEDGE_ALIASES_PATH = join(ROOT, 'data', 'knowledge-aliases.json');
 const ASSISTANT_SESSIONS_PATH = join(ROOT, 'data', 'assistant-sessions.json');
+const MARKETING_DATA_PATH = join(ROOT, 'data', 'marketing.json');
 
 const knowledgeFolders = {
   source: 'sources',
@@ -128,6 +129,7 @@ export type ContentMetadata = {
   language: 'en' | 'zh' | 'bilingual';
   instruction?: string;
   temporaryContext?: string;
+  creativeDirection?: string;
   createdAt: string;
   updatedAt: string;
   finalizedAt?: string;
@@ -142,6 +144,15 @@ export type ContentMetadata = {
   conversationTurns?: CreationTurn[];
   conversationSummary?: string;
   knowledgePaths?: string[];
+  versions?: Array<{
+    id: string;
+    content: string;
+    createdAt: string;
+    action: string;
+    generator?: 'codex' | 'api';
+    model?: string;
+    apiUsage?: { inputTokens: number; outputTokens: number; cachedTokens: number };
+  }>;
 };
 
 export type KnowledgeItemType = keyof typeof knowledgeFolders;
@@ -196,6 +207,38 @@ export type AssistantSession = {
   apiResponseId?: string;
   codexThreadId?: string;
   outputPath?: string;
+};
+
+export type MarketingTimelineItem = {
+  id: string;
+  title: string;
+  startDate: string;
+  endDate?: string;
+  status: 'planned' | 'active' | 'done';
+  notes?: string;
+  tags: string[];
+  contentPaths: string[];
+  assetPaths: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type MarketingTodo = {
+  id: string;
+  title: string;
+  dueDate?: string;
+  status: 'todo' | 'doing' | 'done';
+  notes?: string;
+  timelineId?: string;
+  contentPaths: string[];
+  assetPaths: string[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type MarketingData = {
+  timeline: MarketingTimelineItem[];
+  todos: MarketingTodo[];
 };
 
 export type WorkspaceFile = {
@@ -288,6 +331,19 @@ async function writeAssistantSessions(entries: AssistantSession[]) {
   await writeFile(ASSISTANT_SESSIONS_PATH, `${JSON.stringify(entries, null, 2)}\n`, 'utf8');
 }
 
+async function readMarketingData(): Promise<MarketingData> {
+  try {
+    const data = JSON.parse(await readFile(MARKETING_DATA_PATH, 'utf8')) as Partial<MarketingData>;
+    return { timeline: Array.isArray(data.timeline) ? data.timeline : [], todos: Array.isArray(data.todos) ? data.todos : [] };
+  } catch {
+    return { timeline: [], todos: [] };
+  }
+}
+
+async function writeMarketingData(data: MarketingData) {
+  await writeFile(MARKETING_DATA_PATH, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
+}
+
 async function readKnowledgeAliases(): Promise<Record<string, string[]>> {
   try { return JSON.parse(await readFile(KNOWLEDGE_ALIASES_PATH, 'utf8')) as Record<string, string[]>; }
   catch { return {}; }
@@ -314,7 +370,7 @@ async function ensureWorkspace() {
     mkdir(join(ROOT, 'data'), { recursive: true }),
   ]);
 
-  for (const [path, fallback] of [[KNOWLEDGE_METADATA_PATH, '[]\n'], [KNOWLEDGE_USAGE_PATH, '[]\n'], [KNOWLEDGE_ALIASES_PATH, '{}\n'], [ASSISTANT_SESSIONS_PATH, '[]\n']] as const) {
+  for (const [path, fallback] of [[KNOWLEDGE_METADATA_PATH, '[]\n'], [KNOWLEDGE_USAGE_PATH, '[]\n'], [KNOWLEDGE_ALIASES_PATH, '{}\n'], [ASSISTANT_SESSIONS_PATH, '[]\n'], [MARKETING_DATA_PATH, '{\n  "timeline": [],\n  "todos": []\n}\n']] as const) {
     try { await stat(path); }
     catch { await writeFile(path, fallback, 'utf8'); }
   }
@@ -483,6 +539,7 @@ export async function getWorkspace() {
     knowledgeUsage: await readKnowledgeUsage(),
     knowledgeAliases: await readKnowledgeAliases(),
     assistantSessions: await readAssistantSessions(),
+    marketing: await readMarketingData(),
     lastSyncAt: manifest.lastSyncAt ?? '',
   };
 }
@@ -609,6 +666,68 @@ export async function saveAssistantSession(input: {
   };
   await writeAssistantSessions([session, ...entries.filter((item) => item.id !== id)].slice(0, 100));
   return session;
+}
+
+export async function saveMarketingItem(input: {
+  kind: 'timeline' | 'todo';
+  id?: string;
+  title: string;
+  startDate?: string;
+  endDate?: string;
+  dueDate?: string;
+  status?: string;
+  notes?: string;
+  tags?: string[];
+  timelineId?: string;
+  contentPaths?: string[];
+  assetPaths?: string[];
+}) {
+  await ensureWorkspace();
+  const data = await readMarketingData();
+  const title = input.title.trim().slice(0, 160);
+  if (!title) throw new Error('请填写事项名称');
+  const now = new Date().toISOString();
+  const contentPaths = [...new Set(input.contentPaths ?? [])].filter((path) => path.startsWith('outputs/twitter/')).slice(0, 30);
+  const assetPaths = [...new Set(input.assetPaths ?? [])].filter((path) => path.startsWith('outputs/assets/')).slice(0, 50);
+  if (input.kind === 'timeline') {
+    const existing = input.id ? data.timeline.find((item) => item.id === input.id) : undefined;
+    const startDate = /^\d{4}-\d{2}-\d{2}$/.test(input.startDate ?? '') ? input.startDate as string : now.slice(0, 10);
+    const endDate = /^\d{4}-\d{2}-\d{2}$/.test(input.endDate ?? '') && input.endDate! >= startDate ? input.endDate : undefined;
+    const status: MarketingTimelineItem['status'] = input.status === 'active' || input.status === 'done' ? input.status : 'planned';
+    const item: MarketingTimelineItem = {
+      id: existing?.id ?? randomUUID(), title, startDate, endDate, status,
+      notes: input.notes?.trim().slice(0, 10_000) || undefined,
+      tags: [...new Set((input.tags ?? []).map((tag) => tag.trim()).filter(Boolean))].slice(0, 12),
+      contentPaths, assetPaths, createdAt: existing?.createdAt ?? now, updatedAt: now,
+    };
+    await writeMarketingData({ ...data, timeline: [item, ...data.timeline.filter((entry) => entry.id !== item.id)] });
+    return item;
+  }
+  const existing = input.id ? data.todos.find((item) => item.id === input.id) : undefined;
+  const status: MarketingTodo['status'] = input.status === 'doing' || input.status === 'done' ? input.status : 'todo';
+  const dueDate = /^\d{4}-\d{2}-\d{2}$/.test(input.dueDate ?? '') ? input.dueDate : undefined;
+  const timelineId = input.timelineId && data.timeline.some((item) => item.id === input.timelineId) ? input.timelineId : undefined;
+  const item: MarketingTodo = {
+    id: existing?.id ?? randomUUID(), title, dueDate, status,
+    notes: input.notes?.trim().slice(0, 10_000) || undefined,
+    timelineId, contentPaths, assetPaths, createdAt: existing?.createdAt ?? now, updatedAt: now,
+  };
+  await writeMarketingData({ ...data, todos: [item, ...data.todos.filter((entry) => entry.id !== item.id)] });
+  return item;
+}
+
+export async function deleteMarketingItem(kind: 'timeline' | 'todo', id: string) {
+  await ensureWorkspace();
+  const data = await readMarketingData();
+  if (kind === 'timeline') {
+    const exists = data.timeline.some((item) => item.id === id);
+    if (!exists) throw new Error('Timeline 事项不存在');
+    await writeMarketingData({ timeline: data.timeline.filter((item) => item.id !== id), todos: data.todos.map((todo) => todo.timelineId === id ? { ...todo, timelineId: undefined, updatedAt: new Date().toISOString() } : todo) });
+  } else {
+    if (!data.todos.some((item) => item.id === id)) throw new Error('Todo 不存在');
+    await writeMarketingData({ ...data, todos: data.todos.filter((item) => item.id !== id) });
+  }
+  return { id, kind };
 }
 
 export async function recordKnowledgeUsage(input: { knowledgePaths: string[]; targetPath?: string }) {
@@ -755,7 +874,11 @@ function contentInternalTitle(content: string) {
   return firstLine.replace(/https?:\/\/\S+/g, '').trim().slice(0, 72) || 'Twitter Content';
 }
 
-export async function saveContent(input: { path?: string; content: string; instruction?: string; temporaryContext?: string; format?: ContentMetadata['format']; language?: ContentMetadata['language']; status?: ContentMetadata['status']; generator?: ContentMetadata['generator']; model?: string; apiUsage?: ContentMetadata['apiUsage']; apiResponseId?: string; codexThreadId?: string; conversationTurns?: CreationTurn[]; conversationSummary?: string; knowledgePaths?: string[] }) {
+function contentOutputBody(content: string) {
+  return content.replace(/^#\s+.*(?:\r?\n)+/, '').trim();
+}
+
+export async function saveContent(input: { path?: string; content: string; instruction?: string; temporaryContext?: string; creativeDirection?: string; format?: ContentMetadata['format']; language?: ContentMetadata['language']; status?: ContentMetadata['status']; generator?: ContentMetadata['generator']; model?: string; apiUsage?: ContentMetadata['apiUsage']; apiResponseId?: string; codexThreadId?: string; conversationTurns?: CreationTurn[]; conversationSummary?: string; knowledgePaths?: string[]; versionAction?: string }) {
   await ensureWorkspace();
   const content = input.content.trim().slice(0, 500_000);
   if (!content) throw new Error('内容不能为空');
@@ -763,10 +886,30 @@ export async function saveContent(input: { path?: string; content: string; instr
   const entries = await readContentMetadata();
   const normalizedPath = input.path?.replaceAll('\\', '/');
   const existing = normalizedPath ? entries.find((item) => item.path === normalizedPath) : undefined;
+  let previousContent = '';
+  if (existing && normalizedPath) {
+    try { previousContent = contentOutputBody(await readFile(assertInsideWorkspace(join(ROOT, normalizedPath)), 'utf8')); } catch {}
+  }
   const title = contentInternalTitle(content);
   const saved = await saveOutput({ category: 'twitter', title, content, path: input.path });
   const manifest = await readManifest();
   const status = input.status ?? existing?.status ?? 'draft';
+  const versions = [...(existing?.versions ?? [])];
+  if (!versions.length && previousContent) {
+    versions.push({
+      id: randomUUID(), content: previousContent.slice(0, 500_000), createdAt: existing?.updatedAt ?? existing?.createdAt ?? now,
+      action: '此前版本', generator: existing?.generator, model: existing?.model, apiUsage: existing?.apiUsage,
+    });
+  }
+  if (!versions.length || versions.at(-1)?.content.trim() !== content) {
+    versions.push({
+      id: randomUUID(), content, createdAt: now,
+      action: input.versionAction?.trim().slice(0, 240) || (status === 'published' ? '标记已发布' : status === 'final' ? '设为定稿' : existing ? '手动保存' : '首次生成'),
+      generator: input.generator ?? existing?.generator,
+      model: input.model?.trim().slice(0, 120) || existing?.model,
+      apiUsage: input.apiUsage ?? existing?.apiUsage,
+    });
+  }
   const metadata: ContentMetadata = {
     ...existing,
     path: saved.path,
@@ -775,6 +918,7 @@ export async function saveContent(input: { path?: string; content: string; instr
     language: input.language ?? existing?.language ?? 'en',
     instruction: input.instruction?.trim().slice(0, 20_000) || existing?.instruction,
     temporaryContext: input.temporaryContext?.trim().slice(0, 30_000) || existing?.temporaryContext,
+    creativeDirection: input.creativeDirection?.trim().slice(0, 800) || existing?.creativeDirection,
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
     finalizedAt: status === 'final' ? now : existing?.finalizedAt,
@@ -789,6 +933,7 @@ export async function saveContent(input: { path?: string; content: string; instr
     conversationTurns: input.conversationTurns?.slice(-8) ?? existing?.conversationTurns,
     conversationSummary: input.conversationSummary?.trim().slice(-6_000) || existing?.conversationSummary,
     knowledgePaths: [...new Set(input.knowledgePaths ?? existing?.knowledgePaths ?? [])].filter((path) => path.startsWith('knowledge/') && path.endsWith('.md')).slice(0, 12),
+    versions: versions.slice(-30),
   };
   await upsertContentMetadata(metadata);
   if (metadata.knowledgePaths?.length) await recordKnowledgeUsage({ knowledgePaths: metadata.knowledgePaths, targetPath: saved.path });

@@ -6,7 +6,7 @@ import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import remarkGfm from 'remark-gfm';
 
-type View = 'dashboard' | 'documents' | 'content' | 'assets' | 'knowledge';
+type View = 'dashboard' | 'documents' | 'marketing' | 'content' | 'assets' | 'knowledge';
 type MemoryKey = 'current' | 'openQuestions' | 'changelog';
 type OutputCategory = 'documents' | 'twitter' | 'assets';
 type Notice = { tone: 'success' | 'error'; text: string } | null;
@@ -24,14 +24,22 @@ type ContentFormat = 'post' | 'thread' | 'reply' | 'quote' | 'other';
 type ContentLanguage = 'en' | 'zh' | 'bilingual';
 type ContentStatus = 'draft' | 'final' | 'published';
 type ApiUsage = { inputTokens: number; outputTokens: number; cachedTokens: number };
-type ContentMetadata = { path: string; status: ContentStatus; format: ContentFormat; language: ContentLanguage; instruction?: string; temporaryContext?: string; createdAt: string; updatedAt: string; finalizedAt?: string; publishedAt?: string; sourceHashes?: Record<string, string>; reviewRequired?: boolean; generator?: ExecutionMode; model?: string; apiUsage?: ApiUsage; apiResponseId?: string; codexThreadId?: string; conversationTurns?: CreationTurn[]; conversationSummary?: string; knowledgePaths?: string[] };
+type ContentVersion = { id: string; content: string; createdAt: string; action: string; generator?: ExecutionMode; model?: string; apiUsage?: ApiUsage };
+type ContentCandidate = { id: string; label: string; angle: string; content: string };
+type DirectionRun = { candidates: ContentCandidate[]; provider: ExecutionMode; createdAt: string; model?: string; responseId?: string; threadId?: string; usage?: ApiUsage; turns: CreationTurn[]; summary: string };
+type FactCheckResult = { status: 'pass' | 'needs_changes'; summary: string; issues: Array<{ severity: 'high' | 'medium' | 'low'; issue: string; basis: string }>; correctedContent: string };
+type ContentRunMode = 'explore' | 'refine' | 'fact_check';
+type ContentMetadata = { path: string; status: ContentStatus; format: ContentFormat; language: ContentLanguage; instruction?: string; temporaryContext?: string; creativeDirection?: string; createdAt: string; updatedAt: string; finalizedAt?: string; publishedAt?: string; sourceHashes?: Record<string, string>; reviewRequired?: boolean; generator?: ExecutionMode; model?: string; apiUsage?: ApiUsage; apiResponseId?: string; codexThreadId?: string; conversationTurns?: CreationTurn[]; conversationSummary?: string; knowledgePaths?: string[]; versions?: ContentVersion[] };
 type KnowledgeItemType = 'source' | 'discussion' | 'insight' | 'topic' | 'experiment' | 'context';
 type KnowledgeStatus = 'inbox' | 'processed' | 'recorded' | 'active' | 'draft' | 'reviewed' | 'adopted' | 'rejected' | 'superseded' | 'proposed' | 'running' | 'completed' | 'stopped' | 'archived';
 type KnowledgeMetadata = { id: string; type: KnowledgeItemType; path: string; title: string; status: KnowledgeStatus; createdAt: string; updatedAt: string; version: number; contentHash: string; topicIds: string[]; tags: string[]; relatedIds: string[]; sourceUrl?: string; reason?: string; supersedesId?: string; archivedAt?: string };
 type KnowledgeUsage = { id: string; createdAt: string; itemVersions: Array<{ id: string; version: number; contentHash: string }>; sourceHashes: Record<string, string>; targetPath?: string };
 type AssistantMessage = { id: string; role: 'user' | 'assistant'; content: string; createdAt: string };
 type AssistantSession = { id: string; kind: 'knowledge' | 'analysis'; title: string; provider: ExecutionMode; lastProvider?: ExecutionMode; status: 'active' | 'completed'; createdAt: string; updatedAt: string; messages: AssistantMessage[]; knowledgePaths: string[]; includeSources: boolean; apiResponseId?: string; codexThreadId?: string; outputPath?: string };
-type Workspace = { memory: Record<MemoryKey, string>; sources: Source[]; sourceSnapshots: SourceSnapshot[]; records: WorkFile[]; outputs: WorkFile[]; assetMetadata: AssetMetadata[]; contentMetadata: ContentMetadata[]; knowledgeFiles: WorkFile[]; knowledgeMetadata: KnowledgeMetadata[]; knowledgeUsage: KnowledgeUsage[]; knowledgeAliases: Record<string, string[]>; assistantSessions: AssistantSession[]; lastSyncAt: string };
+type MarketingTimelineItem = { id: string; title: string; startDate: string; endDate?: string; status: 'planned' | 'active' | 'done'; notes?: string; tags: string[]; contentPaths: string[]; assetPaths: string[]; createdAt: string; updatedAt: string };
+type MarketingTodo = { id: string; title: string; dueDate?: string; status: 'todo' | 'doing' | 'done'; notes?: string; timelineId?: string; contentPaths: string[]; assetPaths: string[]; createdAt: string; updatedAt: string };
+type MarketingData = { timeline: MarketingTimelineItem[]; todos: MarketingTodo[] };
+type Workspace = { memory: Record<MemoryKey, string>; sources: Source[]; sourceSnapshots: SourceSnapshot[]; records: WorkFile[]; outputs: WorkFile[]; assetMetadata: AssetMetadata[]; contentMetadata: ContentMetadata[]; knowledgeFiles: WorkFile[]; knowledgeMetadata: KnowledgeMetadata[]; knowledgeUsage: KnowledgeUsage[]; knowledgeAliases: Record<string, string[]>; assistantSessions: AssistantSession[]; marketing: MarketingData; lastSyncAt: string };
 type CodexResultFile = { path: string; name: string; content: string; updatedAt: string };
 type CodexRun = {
   id: string;
@@ -54,6 +62,7 @@ const SOURCE_URLS: Record<string, string> = {
 const NAV: Array<{ id: View; label: string }> = [
   { id: 'dashboard', label: '工作台' },
   { id: 'documents', label: '文档与分析' },
+  { id: 'marketing', label: 'Marketing' },
   { id: 'content', label: '内容创作' },
   { id: 'assets', label: '素材工作室' },
   { id: 'knowledge', label: '知识库' },
@@ -76,6 +85,10 @@ function formatTime(value?: string) {
 
 function stripTitle(content = '') {
   return content.replace(/^#\s+.*(?:\r?\n)+/, '').trim();
+}
+
+function parseJsonResponse<T>(content: string): T {
+  return JSON.parse(content.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')) as T;
 }
 
 function MarkdownView({ content, className = '', linksNewTab = false }: { content: string; className?: string; linksNewTab?: boolean }) {
@@ -204,6 +217,7 @@ export default function Home() {
     {!loading && !workspace && <div className="loading">无法读取工作台</div>}
     {workspace && view === 'dashboard' && <Dashboard workspace={workspace} setView={setView} />}
     {workspace && view === 'documents' && <Documents workspace={workspace} refresh={refresh} setNotice={setNotice} />}
+    {workspace && view === 'marketing' && <MarketingBoard workspace={workspace} refresh={refresh} setNotice={setNotice} setView={setView} />}
     {workspace && view === 'content' && <ContentWorkbench workspace={workspace} refresh={refresh} setNotice={setNotice} setView={setView} />}
     {workspace && view === 'knowledge' && <KnowledgeBase workspace={workspace} refresh={refresh} setNotice={setNotice} />}
     {workspace && <div hidden={view !== 'assets'}><AssetStudio workspace={workspace} refresh={refresh} setNotice={setNotice} active={view === 'assets'} /></div>}
@@ -340,22 +354,56 @@ function recommendKnowledgePaths(workspace: Workspace, query: string, limit = 3,
 function KnowledgeReferencePicker({ workspace, selected, onChange, query = '', label = '知识库参考', emptyLabel = '选择资料', types = ['topic', 'insight', 'source', 'discussion'] }: { workspace: Workspace; selected: string[]; onChange: (paths: string[]) => void; query?: string; label?: string; emptyLabel?: string; types?: KnowledgeItemType[] }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState<'all' | KnowledgeItemType>('all');
+  const [pendingSelected, setPendingSelected] = useState<string[]>(selected);
+  const [previewPath, setPreviewPath] = useState('');
   const normalized = search.trim().toLowerCase();
   const topicOnly = types.length === 1 && types[0] === 'topic';
-  const items = workspace.knowledgeMetadata.filter((item) => item.status !== 'archived' && types.includes(item.type)).filter((item) => {
+  const availableTypes = [...new Set(types)];
+  const items = workspace.knowledgeMetadata.filter((item) => item.status !== 'archived' && types.includes(item.type) && (typeFilter === 'all' || item.type === typeFilter)).filter((item) => {
     if (!normalized) return true;
     const file = workspace.knowledgeFiles.find((entry) => entry.path === item.path);
     return [item.title, ...item.tags, file?.content].filter(Boolean).join('\n').toLowerCase().includes(normalized);
   }).sort((a, b) => (a.type === 'topic' ? -1 : b.type === 'topic' ? 1 : b.updatedAt.localeCompare(a.updatedAt)));
   const selectedTitles = selected.flatMap((path) => workspace.knowledgeMetadata.find((item) => item.path === path)?.title ?? []);
-  function toggle(path: string) { onChange(selected.includes(path) ? selected.filter((item) => item !== path) : [...selected, path].slice(-12)); }
+  const previewMetadata = workspace.knowledgeMetadata.find((item) => item.path === previewPath) ?? items[0];
+  const previewFile = workspace.knowledgeFiles.find((item) => item.path === previewMetadata?.path);
+
+  useEffect(() => {
+    if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setOpen(false); };
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', closeOnEscape);
+    return () => { document.body.style.overflow = previousOverflow; document.removeEventListener('keydown', closeOnEscape); };
+  }, [open]);
+
+  function excerpt(path: string) {
+    const file = workspace.knowledgeFiles.find((item) => item.path === path);
+    return stripTitle(file?.content ?? '').replace(/[#>*_`|\[\]()]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 150) || '暂无摘要';
+  }
+  function openPicker() {
+    setPendingSelected(selected);
+    setSearch('');
+    setTypeFilter('all');
+    setPreviewPath(selected.at(-1) ?? workspace.knowledgeMetadata.find((item) => item.status !== 'archived' && types.includes(item.type))?.path ?? '');
+    setOpen(true);
+  }
+  function toggle(path: string) { setPendingSelected((current) => current.includes(path) ? current.filter((item) => item !== path) : [...current, path].slice(-12)); }
+  function confirmSelection() { onChange(pendingSelected); setOpen(false); }
   return <div className="knowledge-reference-picker">
-    <button className={selected.length ? 'knowledge-reference-trigger active' : 'knowledge-reference-trigger'} onClick={() => setOpen(!open)} type="button"><span>{label}</span><strong>{selectedTitles.length ? `${selectedTitles[0]}${selectedTitles.length > 1 ? ` +${selectedTitles.length - 1}` : ''}` : emptyLabel}</strong></button>
-    {open && <div className="knowledge-picker-panel">
-      <div className="knowledge-picker-head"><strong>{topicOnly ? '选择主题' : '选择知识库资料'}</strong><button onClick={() => setOpen(false)} type="button">完成</button></div>
-      <div className="knowledge-picker-tools"><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={topicOnly ? '搜索主题' : '搜索主题、结论或资料'} /><button onClick={() => onChange(recommendKnowledgePaths(workspace, query, 3, types))} disabled={!workspace.knowledgeMetadata.length} type="button">智能推荐</button></div>
-      <div className="knowledge-picker-list">{items.length === 0 ? <Empty text="没有可用的知识记录" /> : items.map((item) => <button className={selected.includes(item.path) ? 'active' : ''} onClick={() => toggle(item.path)} type="button" key={item.id}><span>{selected.includes(item.path) ? '✓' : '+'}</span><div><strong>{item.title}</strong><small>{knowledgeTypeLabel(item.type)}{item.tags.length ? ` · ${item.tags.slice(0, 2).join(' · ')}` : ''}</small></div></button>)}</div>
-      {selected.length > 0 && <button className="knowledge-picker-clear" onClick={() => onChange([])} type="button">清空选择</button>}
+    <button className={selected.length ? 'knowledge-reference-trigger active' : 'knowledge-reference-trigger'} onClick={openPicker} type="button"><span>{label}</span><strong>{selectedTitles.length ? `${selectedTitles[0]}${selectedTitles.length > 1 ? ` +${selectedTitles.length - 1}` : ''}` : emptyLabel}</strong></button>
+    {open && <div className="knowledge-picker-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setOpen(false); }}>
+      <section className="knowledge-picker-panel" role="dialog" aria-modal="true" aria-label={topicOnly ? '选择主题' : '选择知识库资料'}>
+        <div className="knowledge-picker-head"><div><span>{label}</span><strong>{topicOnly ? '选择主题' : '选择知识库资料'}</strong></div><button onClick={() => setOpen(false)} type="button" aria-label="关闭资料选择">×</button></div>
+        <div className="knowledge-picker-tools"><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={topicOnly ? '搜索主题' : '搜索标题、摘要或标签'} autoFocus /><button onClick={() => { const recommended = recommendKnowledgePaths(workspace, query, 3, types); setPendingSelected(recommended); setPreviewPath(recommended[0] ?? ''); }} disabled={!workspace.knowledgeMetadata.length} type="button">智能推荐</button></div>
+        {!topicOnly && <div className="knowledge-picker-filters"><button className={typeFilter === 'all' ? 'active' : ''} onClick={() => setTypeFilter('all')} type="button">全部</button>{availableTypes.map((type) => <button className={typeFilter === type ? 'active' : ''} onClick={() => setTypeFilter(type)} type="button" key={type}>{knowledgeTypeLabel(type)}</button>)}</div>}
+        <div className="knowledge-picker-body">
+          <div className="knowledge-picker-list">{items.length === 0 ? <Empty text="没有找到相关资料" /> : items.map((item) => <div className={`${previewMetadata?.path === item.path ? 'previewing' : ''} ${pendingSelected.includes(item.path) ? 'active' : ''}`} key={item.id}><button className="knowledge-picker-check" onClick={() => toggle(item.path)} type="button" aria-label={`${pendingSelected.includes(item.path) ? '取消选择' : '选择'} ${item.title}`}>{pendingSelected.includes(item.path) ? '✓' : '+'}</button><button className="knowledge-picker-item" onClick={() => setPreviewPath(item.path)} type="button"><strong>{item.title}</strong><p>{excerpt(item.path)}</p><small>{knowledgeTypeLabel(item.type)}{item.tags.length ? ` · ${item.tags.slice(0, 2).join(' · ')}` : ''} · {formatTime(item.updatedAt)}</small></button></div>)}</div>
+          <aside className="knowledge-picker-preview">{previewMetadata && previewFile ? <><div><span>{knowledgeTypeLabel(previewMetadata.type)}</span><strong>{previewMetadata.title}</strong><small>更新于 {formatTime(previewMetadata.updatedAt)}{previewMetadata.sourceUrl ? ' · 含源头链接' : ''}</small></div><MarkdownView content={previewFile.content ?? ''} linksNewTab /></> : <Empty text="点击左侧资料查看内容" />}</aside>
+        </div>
+        <div className="knowledge-picker-footer"><button className="knowledge-picker-clear" onClick={() => setPendingSelected([])} disabled={!pendingSelected.length} type="button">清空</button><span>已选 {pendingSelected.length} 项，确认后用于本次任务</span><div><button onClick={() => setOpen(false)} type="button">取消</button><button className="primary" onClick={confirmSelection} type="button">确认选择{pendingSelected.length ? `（${pendingSelected.length}）` : ''}</button></div></div>
+      </section>
     </div>}
   </div>;
 }
@@ -571,11 +619,12 @@ function relevantContentPaths(query: string, files: WorkFile[], metadata: Conten
   }).sort((a, b) => b.score - a.score || b.updatedAt.localeCompare(a.updatedAt)).slice(0, 4).map((item) => item.path);
 }
 
-function conversationState(metadata: { generator?: ExecutionMode; conversationTurns?: CreationTurn[]; conversationSummary?: string } | undefined, provider: ExecutionMode, instruction: string) {
+function conversationState(metadata: { generator?: ExecutionMode; conversationTurns?: CreationTurn[]; conversationSummary?: string } | undefined, provider: ExecutionMode, instruction: string, forceRestart = false) {
   const previousTurns = metadata?.conversationTurns ?? [];
-  const restart = Boolean((metadata?.generator && metadata.generator !== provider) || previousTurns.length >= 8);
-  const archived = restart ? previousTurns.map((turn) => `- ${turn.provider === 'api' ? 'API' : 'Codex'}：${turn.instruction}`) : [];
-  const summary = [metadata?.conversationSummary, ...archived].filter(Boolean).join('\n').slice(-6_000);
+  const archivePrevious = !forceRestart && Boolean((metadata?.generator && metadata.generator !== provider) || previousTurns.length >= 8);
+  const restart = forceRestart || archivePrevious;
+  const archived = archivePrevious ? previousTurns.map((turn) => `- ${turn.provider === 'api' ? 'API' : 'Codex'}：${turn.instruction}`) : [];
+  const summary = forceRestart ? '' : [metadata?.conversationSummary, ...archived].filter(Boolean).join('\n').slice(-6_000);
   const turn: CreationTurn = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, instruction: instruction.trim().slice(0, 2_000), provider, createdAt: new Date().toISOString() };
   return { restart, summary, turns: [...(restart ? [] : previousTurns), turn].slice(-8) };
 }
@@ -594,13 +643,30 @@ function ContentWorkbench({ workspace, refresh, setNotice, setView }: { workspac
   const [codexRun, setCodexRun] = useState<CodexRun | null>(null);
   const [executionMode, setExecutionMode] = useState<ExecutionMode>('codex');
   const [apiConfigured, setApiConfigured] = useState<boolean | null>(null);
-  const [apiModel, setApiModel] = useState('gpt-5.6-terra');
+  const [apiModel, setApiModel] = useState('gpt-5.6-sol');
   const [conversationInput, setConversationInput] = useState('');
   const [knowledgePaths, setKnowledgePaths] = useState<string[]>([]);
   const [filter, setFilter] = useState<'all' | ContentStatus | 'review'>('all');
   const [draftRestored, setDraftRestored] = useState(false);
+  const [contextOpen, setContextOpen] = useState(false);
+  const [viewingVersionId, setViewingVersionId] = useState('');
+  const [directionRun, setDirectionRun] = useState<DirectionRun | null>(null);
+  const [factCheck, setFactCheck] = useState<FactCheckResult | null>(null);
+  const [versionHistoryOpen, setVersionHistoryOpen] = useState(false);
+  const [toneMenuOpen, setToneMenuOpen] = useState(false);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const [finalizePending, setFinalizePending] = useState(false);
   const selectedMetadata = metadataFor(selectedPath);
   const contentTurns = selectedMetadata?.conversationTurns ?? [];
+  const contentVersions = selectedMetadata?.versions ?? [];
+  const latestVersion = contentVersions.at(-1);
+  const activeVersionId = viewingVersionId || latestVersion?.id || '';
+  const activeVersionIndex = contentVersions.findIndex((version) => version.id === activeVersionId);
+  const viewingHistoricalVersion = Boolean(latestVersion && activeVersionId && activeVersionId !== latestVersion.id);
+  const savedDraft = stripTitle(files.find((file) => file.path === selectedPath)?.content);
+  const hasUnsavedChanges = Boolean(selectedPath && draft.trim() && draft.trim() !== savedDraft.trim());
+  const isFinalized = selectedMetadata?.status === 'final' || selectedMetadata?.status === 'published';
+  const hasTransientWork = Boolean(directionRun || conversationInput.trim() || hasUnsavedChanges || (!selectedPath && (instruction.trim() || temporaryContext.trim() || draft.trim() || knowledgePaths.length)));
   const linkedAssets = selectedPath ? workspace.assetMetadata.filter((item) => item.source === 'generated' && item.linkedContentPaths?.includes(selectedPath)).map((item) => ({ metadata: item, file: workspace.outputs.find((file) => file.path === item.path) })).filter((item): item is { metadata: AssetMetadata; file: WorkFile } => Boolean(item.file)) : [];
   const approvedCount = workspace.contentMetadata.filter((item) => (item.status === 'final' || item.status === 'published') && !item.reviewRequired).length;
   const latestSourceUpdate = workspace.sources.map((source) => source.updatedAt).filter(Boolean).sort().at(-1);
@@ -617,17 +683,23 @@ function ContentWorkbench({ workspace, refresh, setNotice, setView }: { workspac
   useEffect(() => {
     const timer = window.setTimeout(() => {
       try {
-        const saved = JSON.parse(localStorage.getItem('lumiterra-content-working-draft') ?? '{}') as { selectedPath?: string; instruction?: string; temporaryContext?: string; format?: ContentFormat; language?: ContentLanguage; draft?: string; editing?: boolean; executionMode?: ExecutionMode; conversationInput?: string; knowledgePaths?: string[] };
-        if (saved.selectedPath && files.some((file) => file.path === saved.selectedPath)) setSelectedPath(saved.selectedPath);
+        const saved = JSON.parse(localStorage.getItem('lumiterra-content-working-draft') ?? '{}') as { selectedPath?: string; instruction?: string; temporaryContext?: string; format?: ContentFormat; language?: ContentLanguage; draft?: string; editing?: boolean; executionMode?: ExecutionMode; conversationInput?: string; knowledgePaths?: string[]; directionRun?: DirectionRun };
+        const restoredFile = saved.selectedPath ? files.find((file) => file.path === saved.selectedPath) : undefined;
+        const restoredMetadata = restoredFile ? metadataFor(restoredFile.path) : undefined;
+        const restoreDurableVersion = restoredMetadata?.status === 'final' || restoredMetadata?.status === 'published';
+        if (restoredFile) setSelectedPath(restoredFile.path);
         if (saved.instruction) setInstruction(saved.instruction);
-        if (saved.temporaryContext) setTemporaryContext(saved.temporaryContext);
+        if (saved.temporaryContext) { setTemporaryContext(saved.temporaryContext); setContextOpen(true); }
         if (saved.format) setFormat(saved.format);
         if (saved.language) setLanguage(saved.language);
-        if (saved.draft) setDraft(saved.draft);
-        if (typeof saved.editing === 'boolean') setEditing(saved.editing);
+        if (restoreDurableVersion && restoredFile) setDraft(stripTitle(restoredFile.content));
+        else if (saved.draft) setDraft(saved.draft);
+        if (restoreDurableVersion) setEditing(false);
+        else if (typeof saved.editing === 'boolean') setEditing(saved.editing);
         if (saved.executionMode) setExecutionMode(saved.executionMode);
         if (saved.conversationInput) setConversationInput(saved.conversationInput);
         if (Array.isArray(saved.knowledgePaths)) setKnowledgePaths(saved.knowledgePaths);
+        if (saved.directionRun?.candidates?.length === 3) setDirectionRun(saved.directionRun);
       } catch {}
       setDraftRestored(true);
     }, 0);
@@ -645,84 +717,183 @@ function ContentWorkbench({ workspace, refresh, setNotice, setView }: { workspac
 
   useEffect(() => {
     if (!draftRestored) return;
-    const timer = window.setTimeout(() => localStorage.setItem('lumiterra-content-working-draft', JSON.stringify({ selectedPath, instruction, temporaryContext, format, language, draft, editing, executionMode, conversationInput, knowledgePaths })), 250);
+    const timer = window.setTimeout(() => localStorage.setItem('lumiterra-content-working-draft', JSON.stringify({ selectedPath, instruction, temporaryContext, format, language, draft, editing, executionMode, conversationInput, knowledgePaths, directionRun })), 250);
     return () => window.clearTimeout(timer);
-  }, [draftRestored, selectedPath, instruction, temporaryContext, format, language, draft, editing, executionMode, conversationInput, knowledgePaths]);
+  }, [draftRestored, selectedPath, instruction, temporaryContext, format, language, draft, editing, executionMode, conversationInput, knowledgePaths, directionRun]);
+
+  function resetContentWorkspace() {
+    setSelectedPath(''); setInstruction(''); setTemporaryContext(''); setFormat('post'); setLanguage('en'); setDraft(''); setCodexRun(null); setConversationInput(''); setKnowledgePaths([]); setEditing(true); setContextOpen(false); setViewingVersionId(''); setDirectionRun(null); setFactCheck(null); setVersionHistoryOpen(false); setToneMenuOpen(false); setMoreMenuOpen(false); setFinalizePending(false);
+  }
 
   function newContent() {
-    setSelectedPath(''); setInstruction(''); setTemporaryContext(''); setFormat('post'); setLanguage('en'); setDraft(''); setCodexRun(null); setConversationInput(''); setKnowledgePaths([]); setEditing(true);
+    if (hasTransientWork && !window.confirm('未保存的编辑会被放弃；已保存的草稿、定稿和历史版本仍会保留。是否开始新内容？')) return;
+    resetContentWorkspace();
+  }
+
+  function cancelContentEdit() {
+    if (directionRun) {
+      setDirectionRun(null);
+      setNotice({ tone: 'success', text: '已退出方向选择，原内容没有变化' });
+      return;
+    }
+    const savedFile = files.find((file) => file.path === selectedPath);
+    if (savedFile) {
+      selectFile(savedFile);
+      setNotice({ tone: 'success', text: '已放弃未保存修改，恢复到最近保存版本' });
+      return;
+    }
+    resetContentWorkspace();
+    setNotice({ tone: 'success', text: '已取消本次内容创作' });
+  }
+
+  function branchFromFinal() {
+    setSelectedPath(''); setConversationInput(''); setEditing(true); setViewingVersionId(''); setFactCheck(null); setVersionHistoryOpen(false); setFinalizePending(false);
+    setNotice({ tone: 'success', text: '已基于当前定稿创建新草稿，原定稿不会改变' });
   }
 
   function selectFile(file: WorkFile) {
     const metadata = metadataFor(file.path);
-    setSelectedPath(file.path); setDraft(stripTitle(file.content)); setInstruction(metadata?.instruction ?? ''); setTemporaryContext(metadata?.temporaryContext ?? ''); setFormat(metadata?.format ?? 'post'); setLanguage(metadata?.language ?? 'en'); setCodexRun(null); setConversationInput(''); setKnowledgePaths(metadata?.knowledgePaths ?? []); setEditing(false);
+    setSelectedPath(file.path); setDraft(stripTitle(file.content)); setInstruction(metadata?.instruction ?? ''); setTemporaryContext(metadata?.temporaryContext ?? ''); setFormat(metadata?.format ?? 'post'); setLanguage(metadata?.language ?? 'en'); setCodexRun(null); setConversationInput(''); setKnowledgePaths(metadata?.knowledgePaths ?? []); setEditing(false); setContextOpen(Boolean(metadata?.temporaryContext)); setViewingVersionId(metadata?.versions?.at(-1)?.id ?? ''); setDirectionRun(null); setFactCheck(null); setVersionHistoryOpen(false); setToneMenuOpen(false); setMoreMenuOpen(false); setFinalizePending(false);
   }
 
-  async function save(status: ContentStatus = 'draft') {
+  function viewVersion(version: ContentVersion) {
+    setDraft(version.content);
+    setViewingVersionId(version.id);
+    setEditing(false);
+    setDirectionRun(null);
+    setFactCheck(null);
+  }
+
+  async function save(status: ContentStatus = 'draft', versionAction?: string) {
     if (!draft.trim()) return;
     setWorking(true);
     try {
-      const result = await api<{ path: string }>({ action: 'saveContent', path: selectedPath || undefined, content: draft, instruction, temporaryContext, format, language, status, knowledgePaths });
-      setSelectedPath(result.path); await refresh(true);
+      const result = await api<{ path: string; metadata: ContentMetadata }>({ action: 'saveContent', path: selectedPath || undefined, content: draft, instruction, temporaryContext, format, language, status, knowledgePaths, versionAction });
+      setSelectedPath(result.path); setViewingVersionId(result.metadata.versions?.at(-1)?.id ?? ''); await refresh(true);
+      if (status === 'final' || status === 'published') { setEditing(false); setFactCheck(null); setFinalizePending(false); setToneMenuOpen(false); setMoreMenuOpen(false); }
       setNotice({ tone: 'success', text: status === 'published' ? '已标记为发布内容，并进入内容记忆' : status === 'final' ? '已设为定稿，并进入内容记忆' : '草稿已保存' });
     } catch (error) { setNotice({ tone: 'error', text: error instanceof Error ? error.message : '保存失败' }); }
     finally { setWorking(false); }
   }
 
-  async function runContent(action = '生成一个最推荐版本', formatOverride?: ContentFormat) {
+  async function runContent(action = '继续精修当前版本', options: { format?: ContentFormat; mode?: ContentRunMode } = {}) {
     if (!instruction.trim() && !draft.trim()) return;
     setWorking(true); setCodexRun(null);
-    const activeFormat = formatOverride ?? format;
-    if (formatOverride) setFormat(formatOverride);
+    const mode = options.mode ?? 'refine';
+    const activeFormat = options.format ?? format;
+    if (options.format) setFormat(options.format);
     const relatedPaths = relevantContentPaths(`${instruction}\n${temporaryContext}\n${draft}`, files, workspace.contentMetadata);
-    const session = conversationState(selectedMetadata, executionMode, action);
-    const canResume = !session.restart && selectedMetadata?.generator === executionMode;
-    const brief = `本次操作：${action}\n内容形式：${formatLabels[activeFormat]}\n输出语言：${languageLabels[language]}\n\n当前 Marketing 内容需求：\n${instruction || '基于当前草稿继续处理'}\n\n${temporaryContext ? `本次临时背景、热点或链接：\n${temporaryContext}\n\n` : ''}${session.summary ? `前序创作已经确认的要求：\n${session.summary}\n\n` : ''}${relatedPaths.length ? `优先参考的已定稿或已发布内容：\n${relatedPaths.map((path) => `- ${path}`).join('\n')}\n\n` : '当前没有可用的定稿内容参考。\n\n'}${knowledgePaths.length ? `${knowledgeReferenceText(workspace, knowledgePaths)}\n\n` : ''}${draft ? `当前草稿：\n${draft}\n\n` : ''}执行要求：\n- 最新 sources/ 是产品事实来源，知识库参考不能覆盖产品事实\n- 只把 data/content-metadata.json 中 final 或 published 且无需复核的内容作为表达记忆\n- 草稿不得作为官方表达依据\n- 区分已确认事实、运营表达和待确认信息\n- 不承诺未经确认的日期、数值、Token 收益或结果\n- 只输出一个可直接继续编辑和发布的推荐版本，不要输出内容标题、方案说明或三个方向`;
+    const session = conversationState(selectedMetadata, executionMode, action, viewingHistoricalVersion);
+    const canResume = mode === 'refine' && !session.restart && !viewingHistoricalVersion && selectedMetadata?.generator === executionMode;
+    const outputRule = mode === 'explore'
+      ? '这是方向探索。只返回 JSON：{"candidates":[{"label":"方向名","angle":"这一方向的核心判断与区别","content":"完整可发布正文"}]}。必须恰好三个真正不同的方向，不能只是近义改写。'
+      : mode === 'fact_check'
+      ? '这是定稿前事实检查。只返回 JSON：{"status":"pass 或 needs_changes","summary":"结论","issues":[{"severity":"high、medium 或 low","issue":"风险","basis":"产品依据"}],"correctedContent":"只修正事实风险后的完整正文"}。不要静默覆盖原文。'
+      : '这是选定方向后的单线精修。只输出一个完整可发布版本，不解释；除非本次明确要求，不改变核心观点、叙事方向和有效表达。';
+    const brief = `本次操作：${action}\n内容形式：${formatLabels[activeFormat]}\n输出语言：${languageLabels[language]}\n\n当前 Marketing 内容需求：\n${instruction || '基于当前草稿继续处理'}\n\n${temporaryContext ? `本次临时背景、热点或链接：\n${temporaryContext}\n\n` : ''}${selectedMetadata?.creativeDirection ? `当前已选创意方向：\n${selectedMetadata.creativeDirection}\n\n` : ''}${session.summary ? `前序创作已经确认的要求：\n${session.summary}\n\n` : ''}${relatedPaths.length ? `优先参考的已定稿或已发布内容：\n${relatedPaths.map((path) => `- ${path}`).join('\n')}\n\n` : '当前没有可用的定稿内容参考。\n\n'}${knowledgePaths.length ? `${knowledgeReferenceText(workspace, knowledgePaths)}\n\n` : ''}${draft ? `当前草稿：\n${draft}\n\n` : ''}执行要求：\n- 读取并以最新 sources/ 作为产品事实来源，知识库参考不能覆盖产品事实\n- 只把 data/content-metadata.json 中 final 或 published 且无需复核的内容作为表达记忆\n- 草稿不得作为官方表达依据\n- 区分已确认事实、运营表达和待确认信息\n- 不承诺未经确认的日期、数值、Token 收益或结果\n- 避免通用 Crypto 占位口号，表达必须具有 Lumiterra 的独特判断\n- ${outputRule}`;
     try {
       if (executionMode === 'api') {
         const response = await fetch('/api/content', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action, instruction, temporaryContext, draft, format: activeFormat, language, relatedPaths, knowledgePaths, conversationSummary: session.summary, previousResponseId: canResume ? selectedMetadata?.apiResponseId : undefined }),
+          body: JSON.stringify({ mode, action, instruction, temporaryContext, draft, format: activeFormat, language, relatedPaths, knowledgePaths, conversationSummary: session.summary, previousResponseId: canResume ? selectedMetadata?.apiResponseId : undefined }),
         });
-        const result = await response.json() as { content?: string; model?: string; responseId?: string; usage?: ApiUsage; error?: string };
-        if (!response.ok || !result.content) throw new Error(result.error || 'OpenAI API 内容生成失败');
+        const result = await response.json() as { content?: string; candidates?: ContentCandidate[]; factCheck?: FactCheckResult; model?: string; responseId?: string; usage?: ApiUsage; error?: string };
+        if (!response.ok) throw new Error(result.error || 'OpenAI API 内容生成失败');
+        if (mode === 'explore') {
+          if (result.candidates?.length !== 3) throw new Error('没有获得三个完整方向，请重试');
+          setDirectionRun({ candidates: result.candidates, provider: 'api', createdAt: new Date().toISOString(), model: result.model || apiModel, responseId: result.responseId, usage: result.usage, turns: session.turns, summary: session.summary });
+          setFactCheck(null); setNotice({ tone: 'success', text: '已生成三个方向，请选择一个继续' });
+          return;
+        }
+        if (mode === 'fact_check') {
+          if (!result.factCheck) throw new Error('没有获得事实检查结果，请重试');
+          setFactCheck(result.factCheck); setNotice({ tone: 'success', text: result.factCheck.status === 'pass' ? '事实检查通过' : '发现需要确认或修正的内容' });
+          return;
+        }
+        if (!result.content) throw new Error('OpenAI API 没有返回可用内容');
         const nextDraft = stripTitle(result.content);
-        const saved = await api<{ path: string }>({
+        const saved = await api<{ path: string; metadata: ContentMetadata }>({
           action: 'saveContent', path: selectedMetadata?.status === 'draft' ? selectedPath : undefined, content: nextDraft, instruction, temporaryContext,
           format: activeFormat, language, status: 'draft', generator: 'api', model: result.model || apiModel, apiUsage: result.usage, apiResponseId: result.responseId,
-          conversationTurns: session.turns, conversationSummary: session.summary, knowledgePaths,
+          conversationTurns: session.turns, conversationSummary: session.summary, knowledgePaths, creativeDirection: selectedMetadata?.creativeDirection, versionAction: action,
         });
-        setSelectedPath(saved.path); setDraft(nextDraft); setConversationInput(''); setEditing(false);
+        setSelectedPath(saved.path); setDraft(nextDraft); setConversationInput(''); setEditing(false); setViewingVersionId(saved.metadata.versions?.at(-1)?.id ?? ''); setFactCheck(null);
         await refresh(true); setNotice({ tone: 'success', text: 'OpenAI API 已生成内容' });
+        return;
+      }
+
+      if (mode === 'explore' || mode === 'fact_check') {
+        const structuredRun = await executeCodex('', setCodexRun, undefined, undefined, 'text', brief);
+        if (structuredRun.status === 'failed') throw new Error(structuredRun.error || 'Codex 内容任务未完成');
+        const structured = parseJsonResponse<{ candidates?: Array<{ label?: string; angle?: string; content?: string }>; status?: string; summary?: string; issues?: FactCheckResult['issues']; correctedContent?: string }>(structuredRun.finalResponse ?? '');
+        if (mode === 'explore') {
+          const candidates = (structured.candidates ?? []).slice(0, 3).map((candidate, index) => ({ id: String.fromCharCode(65 + index), label: String(candidate.label ?? `方向 ${index + 1}`), angle: String(candidate.angle ?? ''), content: String(candidate.content ?? '').trim() })).filter((candidate) => candidate.content);
+          if (candidates.length !== 3) throw new Error('Codex 没有返回三个完整方向，请重试');
+          setDirectionRun({ candidates, provider: 'codex', createdAt: new Date().toISOString(), threadId: structuredRun.threadId, turns: session.turns, summary: session.summary });
+          setFactCheck(null); setNotice({ tone: 'success', text: '已生成三个方向，请选择一个继续' });
+        } else {
+          const checked: FactCheckResult = { status: structured.status === 'pass' ? 'pass' : 'needs_changes', summary: String(structured.summary ?? ''), issues: Array.isArray(structured.issues) ? structured.issues : [], correctedContent: String(structured.correctedContent ?? draft) };
+          setFactCheck(checked); setNotice({ tone: 'success', text: checked.status === 'pass' ? '事实检查通过' : '发现需要确认或修正的内容' });
+        }
         return;
       }
 
       const resumeThreadId = canResume ? selectedMetadata?.codexThreadId : undefined;
       let run: CodexRun;
-      let resultPath: string | undefined;
       let nextDraft = '';
       if (resumeThreadId) {
         run = await executeCodex('', setCodexRun, undefined, resumeThreadId, 'text', `${brief}\n\n延续当前内容创作会话，只在最终回复中输出修改后的正文，不要解释，不要创建文件。`);
         nextDraft = stripTitle(run.finalResponse ?? '');
       } else {
-        const requestName = (instruction || action).replace(/\s+/g, ' ').slice(0, 48) || 'Twitter 内容';
-        const request = await api<{ path: string }>({ action: 'createRequest', kind: 'creation', outputType: 'twitter', title: requestName, brief: `${brief}\n- 将结果保存到 outputs/twitter/ 并完成执行记录。` });
-        run = await executeCodex(request.path, setCodexRun);
-        const result = run.resultFiles.find((file) => file.path.startsWith('outputs/twitter/') && /\.(md|txt)$/i.test(file.path));
-        if (result) { resultPath = result.path; nextDraft = stripTitle(result.content); }
+        run = await executeCodex('', setCodexRun, undefined, undefined, 'text', `${brief}\n\n这是新的内容分支，只在最终回复中输出修改后的正文，不要解释，不要创建文件。`);
+        nextDraft = stripTitle(run.finalResponse ?? '');
       }
       if (run.status === 'failed') throw new Error(run.error || '内容任务未完成');
       if (!nextDraft) throw new Error('Codex 已完成，但没有返回可用内容');
-      const saved = await api<{ path: string }>({
-        action: 'saveContent', path: resultPath ?? (selectedMetadata?.status === 'draft' ? selectedPath : undefined), content: nextDraft, instruction, temporaryContext,
+      const saved = await api<{ path: string; metadata: ContentMetadata }>({
+        action: 'saveContent', path: selectedMetadata?.status === 'draft' ? selectedPath : undefined, content: nextDraft, instruction, temporaryContext,
         format: activeFormat, language, status: 'draft', generator: 'codex', codexThreadId: run.threadId ?? resumeThreadId,
-        conversationTurns: session.turns, conversationSummary: session.summary, knowledgePaths,
+        conversationTurns: session.turns, conversationSummary: session.summary, knowledgePaths, creativeDirection: selectedMetadata?.creativeDirection, versionAction: action,
       });
-      setSelectedPath(saved.path); setDraft(nextDraft); setConversationInput(''); setEditing(false);
+      setSelectedPath(saved.path); setDraft(nextDraft); setConversationInput(''); setEditing(false); setViewingVersionId(saved.metadata.versions?.at(-1)?.id ?? '');
       await refresh(true); setNotice({ tone: 'success', text: 'Codex 已生成一个推荐版本' });
     } catch (error) { setNotice({ tone: 'error', text: error instanceof Error ? error.message : '生成失败' }); }
     finally { setWorking(false); }
+  }
+
+  async function chooseDirection(candidate: ContentCandidate) {
+    if (!directionRun) return;
+    setWorking(true);
+    try {
+      const creativeDirection = `${candidate.label}｜${candidate.angle}`.slice(0, 800);
+      const conversationSummary = [directionRun.summary, `用户已选择创意方向：${creativeDirection}`].filter(Boolean).join('\n').slice(-6_000);
+      const saved = await api<{ path: string; metadata: ContentMetadata }>({
+        action: 'saveContent', path: selectedMetadata?.status === 'draft' ? selectedPath : undefined, content: candidate.content, instruction, temporaryContext,
+        format, language, status: 'draft', generator: directionRun.provider, model: directionRun.model, apiUsage: directionRun.usage,
+        apiResponseId: directionRun.responseId, codexThreadId: directionRun.threadId, conversationTurns: directionRun.turns,
+        conversationSummary, creativeDirection, knowledgePaths, versionAction: `选定方向：${candidate.label}`,
+      });
+      setSelectedPath(saved.path); setDraft(candidate.content); setConversationInput(''); setEditing(false); setViewingVersionId(saved.metadata.versions?.at(-1)?.id ?? ''); setDirectionRun(null); setFactCheck(null);
+      await refresh(true); setNotice({ tone: 'success', text: `已选择“${candidate.label}”，现在可以围绕这个方向继续修改` });
+    } catch (error) { setNotice({ tone: 'error', text: error instanceof Error ? error.message : '选择方向失败' }); }
+    finally { setWorking(false); }
+  }
+
+  function loadFactCheckCorrection() {
+    if (!factCheck?.correctedContent.trim()) return;
+    setDraft(factCheck.correctedContent.trim()); setEditing(true); setFactCheck(null);
+    setNotice({ tone: 'success', text: '修正版已放入编辑区，确认后保存即可' });
+  }
+
+  function beginFinalize() {
+    setFinalizePending(true);
+    void runContent('定稿前核对全部产品事实与公开表达风险', { mode: 'fact_check' });
+  }
+
+  function confirmFinalize() {
+    if (factCheck?.status === 'needs_changes' && !window.confirm('检查仍发现需要处理的内容。确认仍将当前版本设为定稿吗？')) return;
+    void save('final', '完成定稿检查并确认');
   }
 
   function createVisual() {
@@ -742,26 +913,53 @@ function ContentWorkbench({ workspace, refresh, setNotice, setView }: { workspac
       <aside className="box content-history"><BoxHeader title="内容记录" />
         <div className="content-history-filters">{([['all', '全部'], ['draft', '草稿'], ['final', '定稿'], ['published', '已发布'], ['review', '需复核']] as const).map(([key, label]) => <button className={filter === key ? 'active' : ''} onClick={() => setFilter(key)} key={key} type="button">{label}</button>)}</div>
         {visibleFiles.length === 0 && <Empty text="暂无内容记录" />}
-        {visibleFiles.map((file) => { const metadata = metadataFor(file.path); return <button className={`content-history-row ${file.path === selectedPath ? 'active' : ''}`} onClick={() => selectFile(file)} key={file.path} type="button"><span className={metadata?.reviewRequired ? 'review' : ''}>{statusLabel(metadata)}</span><strong>{contentPreview(file.content)}</strong><small>{formatLabels[metadata?.format ?? 'post']} · {formatTime(file.updatedAt)}</small></button>; })}
+        {visibleFiles.map((file) => { const metadata = metadataFor(file.path); return <button className={`content-history-row ${file.path === selectedPath ? 'active' : ''}`} onClick={() => selectFile(file)} key={file.path} type="button"><span className={metadata?.reviewRequired ? 'review' : ''}>{statusLabel(metadata)}</span><strong>{contentPreview(file.content)}</strong><small>{formatLabels[metadata?.format ?? 'post']} · {Math.max(1, metadata?.versions?.length ?? 0)} 版 · {formatTime(file.updatedAt)}</small></button>; })}
       </aside>
 
       <main className="content-workbench-main">
-        <section className="box content-composer"><BoxHeader title="快速创作" />
+        {!isFinalized && <section className="box content-composer"><BoxHeader title="快速创作" />
           <div className="content-memory-strip"><span><i />最新产品内容 <strong>{formatTime(latestSourceUpdate)}</strong></span><span><i />定稿内容记忆 <strong>{approvedCount} 条</strong></span><span className="shared-memory-note">两种方式共用</span></div>
           <label className="content-request-label">现在想发什么？<textarea value={instruction} onChange={(event) => setInstruction(event.target.value)} placeholder="例如：结合最近 Fully Onchain 的讨论，写一条更 Crypto Native 的 Lumiterra 推文。" /></label>
-          <label className="content-context-label">本次背景或热点（可选）<textarea value={temporaryContext} onChange={(event) => setTemporaryContext(event.target.value)} placeholder="粘贴热点、推文链接、社区反馈或临时信息；只用于本次创作。" /></label>
+          <button className="content-context-toggle" onClick={() => setContextOpen(!contextOpen)} type="button" aria-expanded={contextOpen}><span>本次背景或热点（可选）</span><strong>{temporaryContext ? '已填写' : contextOpen ? '收起' : '添加'}</strong></button>
+          {contextOpen && <label className="content-context-label">临时背景<textarea value={temporaryContext} onChange={(event) => setTemporaryContext(event.target.value)} placeholder="粘贴热点、推文链接、社区反馈或临时信息；只用于本次创作。" /></label>}
           <KnowledgeReferencePicker workspace={workspace} selected={knowledgePaths} onChange={setKnowledgePaths} query={`${instruction}\n${temporaryContext}\n${draft}`} />
-          <div className="content-controls"><div className="execution-control"><span>执行方式</span><div className="execution-switch"><button className={executionMode === 'codex' ? 'active' : ''} onClick={() => setExecutionMode('codex')} type="button">Codex</button><button className={executionMode === 'api' ? 'active' : ''} onClick={() => setExecutionMode('api')} disabled={apiConfigured === false} title={apiConfigured === false ? '未配置 OPENAI_API_KEY' : apiModel} type="button">OpenAI API</button></div></div><label>形式<select value={format} onChange={(event) => setFormat(event.target.value as ContentFormat)}>{Object.entries(formatLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label><label>语言<select value={language} onChange={(event) => setLanguage(event.target.value as ContentLanguage)}>{Object.entries(languageLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label><button className="primary" onClick={() => runContent()} disabled={working || (!instruction.trim() && !draft.trim()) || (executionMode === 'api' && apiConfigured !== true)} type="button">{working ? '正在创作…' : executionMode === 'api' ? '使用 API 创作' : '使用 Codex 创作'}</button></div>
+          <div className="content-controls"><div className="execution-control"><span>执行方式</span><div className="execution-switch"><button className={executionMode === 'codex' ? 'active' : ''} onClick={() => setExecutionMode('codex')} type="button">Codex</button><button className={executionMode === 'api' ? 'active' : ''} onClick={() => setExecutionMode('api')} disabled={apiConfigured === false} title={apiConfigured === false ? '未配置 OPENAI_API_KEY' : apiModel} type="button">OpenAI API</button></div></div><label>形式<select value={format} onChange={(event) => setFormat(event.target.value as ContentFormat)}>{Object.entries(formatLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label><label>语言<select value={language} onChange={(event) => setLanguage(event.target.value as ContentLanguage)}>{Object.entries(languageLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label><button className="primary" onClick={() => runContent(draft ? '基于当前版本重新探索三个创意方向' : '探索三个创意方向', { mode: 'explore' })} disabled={working || (!instruction.trim() && !draft.trim()) || (executionMode === 'api' && apiConfigured !== true)} type="button">{working ? '正在创作…' : draft ? '重新探索 3 个方向' : '生成 3 个方向'}</button></div>
           <CodexRunView run={codexRun} />
-        </section>
+        </section>}
 
-        <section className="box content-result"><BoxHeader title="当前内容" action={<div className="inline-actions">{selectedMetadata?.generator && <span className="provider-meta">{selectedMetadata.generator === 'api' ? selectedMetadata.model || 'OpenAI API' : 'Codex'}</span>}<span className={`content-status ${selectedMetadata?.reviewRequired ? 'review' : ''}`}>{statusLabel(selectedMetadata)}</span>{draft && <button className="link-button" onClick={() => setEditing(!editing)} type="button">{editing ? '预览' : '编辑'}</button>}</div>} />
-          {editing ? <textarea className="draft-editor fast-content-editor" value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="也可以直接在这里写内容。" /> : format === 'post' || format === 'reply' || format === 'quote' ? <TwitterPreview title="" content={draft} /> : <div className="plain-content-preview">{draft || '暂无内容'}</div>}
-          <div className="content-tools"><button onClick={() => runContent('强化开头 Hook，同时保持事实准确')} disabled={!draft || working} type="button">强化 Hook</button><button onClick={() => runContent('改得更 Crypto Native，减少传统产品宣传语气')} disabled={!draft || working} type="button">更 Crypto Native</button><button onClick={() => runContent('缩短内容，保留最重要的信息和行动感')} disabled={!draft || working} type="button">缩短</button><button onClick={() => runContent('减少 AI 感，让表达更自然、更像真实项目账号')} disabled={!draft || working} type="button">更自然</button><button onClick={() => runContent('按照最新产品文档进行事实检查，并直接输出修正后的可发布版本')} disabled={!draft || working} type="button">事实检查</button><button onClick={() => runContent(language === 'zh' ? '翻译成自然的 Crypto 英文' : '翻译成自然中文')} disabled={!draft || working} type="button">翻译</button><button onClick={() => runContent('改写成结构紧凑的 Twitter Thread', 'thread')} disabled={!draft || working} type="button">改成 Thread</button><button onClick={createVisual} disabled={!draft} type="button">制作配图</button></div>
-          {draft && <div className="creation-conversation"><div className="conversation-head"><strong>创作会话</strong><span>{contentTurns.length} 轮{selectedMetadata?.conversationSummary ? ' · 已整理前序要求' : ''}</span></div>{contentTurns.length > 0 && <div className="conversation-turns">{contentTurns.slice(-4).map((turn, index) => <div key={turn.id}><span>{turn.provider === 'api' ? 'API' : 'Codex'} · {Math.max(1, contentTurns.length - Math.min(4, contentTurns.length) + index + 1)}</span><p>{turn.instruction}</p></div>)}</div>}<div className="conversation-input"><input value={conversationInput} onChange={(event) => setConversationInput(event.target.value)} placeholder="继续调整，例如：保留核心信息，开头再直接一点" onKeyDown={(event) => { if (event.key === 'Enter' && conversationInput.trim() && !working) void runContent(conversationInput); }} /><button className="primary" onClick={() => runContent(conversationInput)} disabled={!conversationInput.trim() || working || (executionMode === 'api' && apiConfigured !== true)} type="button">继续修改</button></div></div>}
-          {selectedMetadata?.generator === 'api' && selectedMetadata.apiUsage && <div className="api-usage">本次 API · 输入 {selectedMetadata.apiUsage.inputTokens.toLocaleString()} · 输出 {selectedMetadata.apiUsage.outputTokens.toLocaleString()}{selectedMetadata.apiUsage.cachedTokens ? ` · 缓存 ${selectedMetadata.apiUsage.cachedTokens.toLocaleString()}` : ''}</div>}
-          <div className="content-savebar"><span>{draft.trim().length} 字符</span><div><button onClick={() => save('draft')} disabled={!draft || working} type="button">保存草稿</button><button onClick={() => save('final')} disabled={!draft || working} type="button">设为定稿</button><button className="primary" onClick={() => save('published')} disabled={!draft || working} type="button">标记已发布</button></div></div>
-          {linkedAssets.length > 0 && <div className="linked-assets"><div><strong>关联配图</strong><span>{linkedAssets.length}</span></div><div>{linkedAssets.map(({ metadata, file }) => <button onClick={() => openLinkedAsset(file.path)} key={file.path} type="button"><Image src={`/api/file?path=${encodeURIComponent(file.path)}`} alt={metadata.title} width={180} height={120} unoptimized /><span>{metadata.title}</span></button>)}</div></div>}
+        <section className="box content-result">
+          <BoxHeader title={directionRun ? '选择创作方向' : isFinalized ? '已完成内容' : '当前内容'} action={<div className="inline-actions">{hasUnsavedChanges && <span className="local-draft-status">本地未保存</span>}{selectedMetadata?.generator && <span className="provider-meta">{selectedMetadata.generator === 'api' ? selectedMetadata.model || 'OpenAI API' : 'Codex'}</span>}<span className={`content-status ${selectedMetadata?.reviewRequired ? 'review' : ''}`}>{statusLabel(selectedMetadata)}</span>{draft && !directionRun && !isFinalized && <button className="link-button" onClick={() => setEditing(!editing)} type="button">{editing ? '预览' : '编辑'}</button>}</div>} />
+
+          {directionRun ? <section className="direction-board direction-board-focus">
+            <div className="direction-board-head"><div><span>方向探索</span><strong>选定一个方向后，再进入编辑和多轮修改</strong></div><button onClick={cancelContentEdit} type="button">取消选择</button></div>
+            <div className="direction-cards">{directionRun.candidates.map((candidate) => <article key={candidate.id}><header><span>{candidate.id}</span><div><strong>{candidate.label}</strong><p>{candidate.angle}</p></div></header><div className="direction-copy">{candidate.content}</div><button className="primary" onClick={() => chooseDirection(candidate)} disabled={working} type="button">选择这个方向</button></article>)}</div>
+          </section> : <>
+            {selectedMetadata?.creativeDirection && !isFinalized && <div className="selected-direction"><span>当前方向</span><strong>{selectedMetadata.creativeDirection}</strong><button onClick={() => runContent('基于当前版本重新探索三个创意方向', { mode: 'explore' })} disabled={working} type="button">换方向</button></div>}
+
+            {contentVersions.length > 0 && <div className="content-version-compact">
+              <button onClick={() => setVersionHistoryOpen(!versionHistoryOpen)} type="button"><span>{viewingHistoricalVersion ? `正在查看 V${activeVersionIndex + 1}` : `当前 V${contentVersions.length}`}</span><strong>{versionHistoryOpen ? '收起版本' : `查看全部 ${contentVersions.length} 个版本`}</strong></button>
+              {versionHistoryOpen && <div className="content-version-bar"><div className="content-version-list">{contentVersions.map((version, index) => <button className={version.id === activeVersionId ? 'active' : ''} onClick={() => viewVersion(version)} title={version.action} type="button" key={version.id}><strong>V{index + 1}</strong><span>{version.action}</span><small>{formatTime(version.createdAt)}</small></button>)}</div>{viewingHistoricalVersion && <button className="restore-version" onClick={() => save('draft', `恢复到版本 V${activeVersionIndex + 1}`)} disabled={working} type="button">恢复为当前版本</button>}</div>}
+            </div>}
+
+            {editing && !isFinalized ? <textarea className="draft-editor fast-content-editor" value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="也可以直接在这里写内容。" /> : format === 'post' || format === 'reply' || format === 'quote' ? <TwitterPreview title="" content={draft} /> : <div className="plain-content-preview">{draft || '暂无内容'}</div>}
+
+            {isFinalized ? <div className="content-complete-state"><div><span>{selectedMetadata?.status === 'published' ? '已发布' : '已定稿 · 已进入内容记忆'}</span><strong>这条内容已退出编辑状态</strong></div><div><button onClick={branchFromFinal} type="button">基于此稿继续创作</button>{selectedMetadata?.status === 'final' && <button onClick={() => save('published')} disabled={working} type="button">标记已发布</button>}<button className="primary" onClick={newContent} type="button">开始下一条</button></div></div> : <>
+              {draft && <div className="creation-conversation"><div className="conversation-head"><strong>围绕当前方向继续修改</strong><span>{contentTurns.length} 轮{selectedMetadata?.conversationSummary ? ' · 已整理前序要求' : ''}</span></div>{contentTurns.length > 0 && <details className="conversation-history-details"><summary>查看最近 {Math.min(4, contentTurns.length)} 轮调整</summary><div className="conversation-turns">{contentTurns.slice(-4).map((turn, index) => <div key={turn.id}><span>{turn.provider === 'api' ? 'API' : 'Codex'} · {Math.max(1, contentTurns.length - Math.min(4, contentTurns.length) + index + 1)}</span><p>{turn.instruction}</p></div>)}</div></details>}<div className="conversation-input"><input value={conversationInput} onChange={(event) => setConversationInput(event.target.value)} placeholder="说清楚：保留什么、只改什么、避免什么" onKeyDown={(event) => { if (event.key === 'Enter' && conversationInput.trim() && !working) void runContent(conversationInput); }} /><button className="primary" onClick={() => runContent(conversationInput)} disabled={!conversationInput.trim() || working || (executionMode === 'api' && apiConfigured !== true)} type="button">继续修改</button></div></div>}
+
+              {draft && <div className="content-action-groups compact-actions">
+                <div className="content-action-group"><span>快速精修</span><div><button onClick={() => runContent('只重写开头 Hook；保持核心观点、事实、语气方向和其余正文不变')} disabled={working} type="button">强化开头</button><button onClick={() => runContent('压缩正文；保持核心观点、情绪和创意方向不变，删除重复或弱信息')} disabled={working} type="button">压缩</button></div></div>
+                <div className="content-action-menu"><button onClick={() => { setToneMenuOpen(!toneMenuOpen); setMoreMenuOpen(false); }} type="button">调整语气 <span>⌄</span></button>{toneMenuOpen && <div><button onClick={() => { setToneMenuOpen(false); void runContent('只调整措辞为更自然的 Crypto Native 表达；保持核心判断和内容结构不变'); }} disabled={working} type="button">Crypto Native</button><button onClick={() => { setToneMenuOpen(false); void runContent('只减少 AI 感和宣传腔；保持信息、结构与创意方向不变，像真实项目账号自然表达'); }} disabled={working} type="button">更自然</button><button onClick={() => { setToneMenuOpen(false); void runContent('增强神秘感和留白，但不能使用空泛占位口号；保持事实与核心观点不变'); }} disabled={working} type="button">更神秘</button><button onClick={() => { setToneMenuOpen(false); void runContent('增强观点冲突和回复欲望；不要制造虚假事实，保持当前创意方向不变'); }} disabled={working} type="button">更有冲突</button></div>}</div>
+                <div className="content-action-menu"><button onClick={() => { setMoreMenuOpen(!moreMenuOpen); setToneMenuOpen(false); }} type="button">更多操作 <span>⌄</span></button>{moreMenuOpen && <div><button onClick={() => { setMoreMenuOpen(false); void runContent(language === 'zh' ? '翻译成自然的 Crypto 英文；保持观点、语气和结构' : '翻译成自然中文；保持观点、语气和结构'); }} disabled={working} type="button">翻译</button><button onClick={() => { setMoreMenuOpen(false); void runContent('改写成结构紧凑的 Twitter Thread；保持原核心观点', { format: 'thread' }); }} disabled={working} type="button">改成 Thread</button><button onClick={() => { setMoreMenuOpen(false); createVisual(); }} type="button">制作配图</button></div>}</div>
+              </div>}
+
+              {factCheck && <section className={`fact-check-panel ${factCheck.status}`}><header><div><span>{factCheck.status === 'pass' ? '检查通过' : '需要处理'}</span><strong>{factCheck.summary}</strong></div><button onClick={() => { setFactCheck(null); setFinalizePending(false); }} type="button">关闭</button></header>{factCheck.issues.length > 0 && <div className="fact-check-issues">{factCheck.issues.map((issue, index) => <article key={`${issue.issue}-${index}`}><span className={issue.severity}>{issue.severity === 'high' ? '高' : issue.severity === 'medium' ? '中' : '低'}</span><div><strong>{issue.issue}</strong><p>{issue.basis}</p></div></article>)}</div>}<footer><span>原文不会自动被覆盖</span><div>{factCheck.status === 'needs_changes' && <button onClick={loadFactCheckCorrection} disabled={!factCheck.correctedContent.trim()} type="button">载入修正版</button>}{finalizePending && <button className="primary" onClick={confirmFinalize} disabled={working} type="button">确认定稿</button>}</div></footer></section>}
+
+              <div className="content-savebar"><span>{draft.trim().length} 字符{viewingHistoricalVersion ? ` · 基于 V${activeVersionIndex + 1}` : ''}</span><div><button onClick={cancelContentEdit} disabled={working} type="button">取消编辑</button><button onClick={() => save('draft')} disabled={!draft || working} type="button">保存草稿</button><button className="primary" onClick={beginFinalize} disabled={!draft || working} type="button">{working && finalizePending ? '正在检查…' : '检查并定稿'}</button></div></div>
+            </>}
+
+            {selectedMetadata?.generator === 'api' && selectedMetadata.apiUsage && <div className="api-usage">本次 API · 输入 {selectedMetadata.apiUsage.inputTokens.toLocaleString()} · 输出 {selectedMetadata.apiUsage.outputTokens.toLocaleString()}{selectedMetadata.apiUsage.cachedTokens ? ` · 缓存 ${selectedMetadata.apiUsage.cachedTokens.toLocaleString()}` : ''}</div>}
+            {linkedAssets.length > 0 && <div className="linked-assets"><div><strong>关联配图</strong><span>{linkedAssets.length}</span></div><div>{linkedAssets.map(({ metadata, file }) => <button onClick={() => openLinkedAsset(file.path)} key={file.path} type="button"><Image src={`/api/file?path=${encodeURIComponent(file.path)}`} alt={metadata.title} width={180} height={120} unoptimized /><span>{metadata.title}</span></button>)}</div></div>}
+          </>}
         </section>
       </main>
     </div>
@@ -892,8 +1090,10 @@ function AssetStudio({ workspace, refresh, setNotice, active }: { workspace: Wor
   const [executionMode, setExecutionMode] = useState<ExecutionMode>('codex');
   const [referenceFilter, setReferenceFilter] = useState<'全部' | AssetRole>('全部');
   const [workFilter, setWorkFilter] = useState<'all' | 'draft' | 'adopted'>('all');
+  const [assetIterationOpen, setAssetIterationOpen] = useState(false);
   const activeAsset = assets.find((file) => file.path === selectedAsset);
   const activeMetadata = metadataFor(selectedAsset);
+  const assetCompleted = activeMetadata?.status === 'adopted' && !assetIterationOpen;
   const assetTurns = activeMetadata?.conversationTurns ?? [];
   const activeVersions = activeMetadata?.source === 'generated' ? generatedAssets
     .filter((file) => (metadataFor(file.path)?.groupId ?? metadataFor(file.path)?.title) === (activeMetadata.groupId ?? activeMetadata.title))
@@ -917,37 +1117,41 @@ function AssetStudio({ workspace, refresh, setNotice, active }: { workspace: Wor
 
   useEffect(() => { fetch('/api/image', { cache: 'no-store' }).then(async (response) => await response.json() as { configured?: boolean; model?: string }).then((result) => { setImageConfigured(Boolean(result.configured)); if (result.model) setImageModel(result.model); }).catch(() => setImageConfigured(false)); }, []);
   useEffect(() => {
-    if (!active) return;
+    if (!active || formRestored) return;
     const timer = window.setTimeout(() => {
       try {
-        const saved = JSON.parse(localStorage.getItem('lumiterra-asset-working-draft') ?? '{}') as { creationMode?: 'new' | 'edit'; creationSource?: AssetCreationSource; linkedContentPath?: string; linkContent?: boolean; seriesSelection?: string; seriesName?: string; seriesRules?: string; title?: string; usage?: string; message?: string; format?: string; quality?: string; requirements?: string; selectedAsset?: string; references?: string[]; executionMode?: ExecutionMode; knowledgePaths?: string[] };
+        const saved = JSON.parse(localStorage.getItem('lumiterra-asset-working-draft') ?? '{}') as { mode?: 'create' | 'references' | 'works'; creationMode?: 'new' | 'edit'; creationSource?: AssetCreationSource; linkedContentPath?: string; linkContent?: boolean; seriesSelection?: string; seriesName?: string; seriesRules?: string; adjustment?: string; title?: string; usage?: string; message?: string; format?: string; quality?: string; requirements?: string; selectedAsset?: string; references?: string[]; executionMode?: ExecutionMode; knowledgePaths?: string[]; assetIterationOpen?: boolean };
+        if (saved.mode === 'create' || saved.mode === 'references' || saved.mode === 'works') setMode(saved.mode);
         if (saved.creationMode) setCreationMode(saved.creationMode);
         if (saved.creationSource) setCreationSource(saved.creationSource);
-        if (saved.linkedContentPath) setLinkedContentPath(saved.linkedContentPath);
+        if (typeof saved.linkedContentPath === 'string') setLinkedContentPath(saved.linkedContentPath);
         if (typeof saved.linkContent === 'boolean') setLinkContent(saved.linkContent);
-        if (saved.seriesSelection) setSeriesSelection(saved.seriesSelection);
-        if (saved.seriesName) setSeriesName(saved.seriesName);
-        if (saved.seriesRules) setSeriesRules(saved.seriesRules);
-        if (saved.title) setTitle(saved.title);
-        if (saved.usage) setUsage(normalizedAssetUsage(saved.usage));
-        if (saved.message) setMessage(saved.message);
-        if (saved.format) setFormat(saved.format);
-        if (saved.quality) setQuality(saved.quality);
-        if (saved.requirements) setRequirements(saved.requirements);
+        if (typeof saved.seriesSelection === 'string') setSeriesSelection(saved.seriesSelection);
+        if (typeof saved.seriesName === 'string') setSeriesName(saved.seriesName);
+        if (typeof saved.seriesRules === 'string') setSeriesRules(saved.seriesRules);
+        if (typeof saved.adjustment === 'string') setAdjustment(saved.adjustment);
+        if (typeof saved.title === 'string') setTitle(saved.title);
+        if (typeof saved.usage === 'string') setUsage(normalizedAssetUsage(saved.usage));
+        if (typeof saved.message === 'string') setMessage(saved.message);
+        if (typeof saved.format === 'string') setFormat(saved.format);
+        if (typeof saved.quality === 'string') setQuality(saved.quality);
+        if (typeof saved.requirements === 'string') setRequirements(saved.requirements);
         if (saved.selectedAsset && assets.some((file) => file.path === saved.selectedAsset)) setSelectedAsset(saved.selectedAsset);
-        if (saved.references?.length) setReferences(saved.references.filter((path) => imageAssets.some((file) => file.path === path)));
+        if (Array.isArray(saved.references)) setReferences(saved.references.filter((path) => imageAssets.some((file) => file.path === path)));
         if (saved.executionMode) setExecutionMode(saved.executionMode);
         if (Array.isArray(saved.knowledgePaths)) setKnowledgePaths(saved.knowledgePaths);
+        if (typeof saved.assetIterationOpen === 'boolean') setAssetIterationOpen(saved.assetIterationOpen);
         const savedFailure = localStorage.getItem('lumiterra-asset-generation-failure');
         if (savedFailure) setGenerationFailure(JSON.parse(savedFailure) as ImageGenerationFailure);
       } catch {}
       setFormRestored(true);
     }, 0);
     return () => window.clearTimeout(timer);
-    // Restore the local working state once; generated files remain the durable asset record.
+    // Restore when the always-mounted studio first becomes visible; generated files remain the durable asset record.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [active, formRestored]);
   useEffect(() => {
+    if (!active) return;
     const timer = window.setTimeout(() => {
       const contentDraft = sessionStorage.getItem('lumiterra-content-visual-brief');
       const assetToOpen = sessionStorage.getItem('lumiterra-asset-open');
@@ -977,13 +1181,18 @@ function AssetStudio({ workspace, refresh, setNotice, active }: { workspace: Wor
 
   useEffect(() => {
     if (!formRestored) return;
-      const timer = window.setTimeout(() => localStorage.setItem('lumiterra-asset-working-draft', JSON.stringify({ creationMode, creationSource, linkedContentPath, linkContent, seriesSelection, seriesName, seriesRules, title, usage, message, format, quality, requirements, selectedAsset, references, executionMode, knowledgePaths })), 250);
+      const timer = window.setTimeout(() => localStorage.setItem('lumiterra-asset-working-draft', JSON.stringify({ mode, creationMode, creationSource, linkedContentPath, linkContent, seriesSelection, seriesName, seriesRules, adjustment, title, usage, message, format, quality, requirements, selectedAsset, references, executionMode, knowledgePaths, assetIterationOpen })), 250);
     return () => window.clearTimeout(timer);
-  }, [formRestored, creationMode, creationSource, linkedContentPath, linkContent, seriesSelection, seriesName, seriesRules, title, usage, message, format, quality, requirements, selectedAsset, references, executionMode, knowledgePaths]);
+  }, [formRestored, mode, creationMode, creationSource, linkedContentPath, linkContent, seriesSelection, seriesName, seriesRules, adjustment, title, usage, message, format, quality, requirements, selectedAsset, references, executionMode, knowledgePaths, assetIterationOpen]);
 
   function briefText(adjustmentText = '') {
     const sourceLabel = creationSource === 'content' ? '基于内容制作' : creationSource === 'series' ? '系列创作' : '独立制作';
     return `素材类型：图片\n创作来源：${sourceLabel}\n用途：${usage}\n画面目标：${message}\n规格：${format}\n${creationSource === 'series' ? `系列名称：${seriesName}\n系列视觉规则：${seriesRules || '沿用已确认作品与参考素材'}\n` : ''}${adjustmentText ? `本轮调整：${adjustmentText}\n` : ''}补充要求：${requirements || '无'}\n参考素材：${references.join('、') || '无'}\n内容关联：${creationSource === 'content' && linkContent && linkedContentPath ? linkedContentPath : '无'}${knowledgePaths.length ? `\n\n${knowledgeReferenceText(workspace, knowledgePaths)}\n\n使用规则：知识库只提供运营背景，最新 sources/ 仍是产品事实来源。` : ''}`;
+  }
+
+  function savedPromptField(prompt: string | undefined, label: string) {
+    const prefix = `${label}：`;
+    return prompt?.split('\n').find((line) => line.startsWith(prefix))?.slice(prefix.length).trim();
   }
 
   function confirmCreationSwitch(prompt: string) {
@@ -991,12 +1200,28 @@ function AssetStudio({ workspace, refresh, setNotice, active }: { workspace: Wor
     return !hasCurrentWork || window.confirm(prompt);
   }
 
+  function clearAssetWorkspace() {
+    setMode('create'); setCreationMode('new'); setCreationSource('independent'); setSelectedAsset(''); setDetailAssetPath('');
+    setTitle(''); setUsage('社交内容配图'); setMessage(''); setFormat('16:9'); setQuality('medium'); setRequirements(''); setAdjustment(''); setReferences(defaultReferencePaths); setKnowledgePaths([]);
+    setLinkedContentPath(''); setLinkContent(false); setSeriesSelection('new'); setSeriesName(''); setSeriesRules(''); setAssetIterationOpen(false);
+    setCodexRun(null); setGenerationFailure(null); localStorage.removeItem('lumiterra-asset-generation-failure');
+  }
+
   function startNewCreation() {
     if (!confirmCreationSwitch('当前创作和已生成版本会保留在“生成作品”中。是否开始新创作？')) return;
-    setMode('create'); setCreationMode('new'); setCreationSource('independent'); setSelectedAsset(''); setDetailAssetPath('');
-    setTitle(''); setMessage(''); setRequirements(''); setAdjustment(''); setReferences(defaultReferencePaths); setKnowledgePaths([]);
-    setLinkedContentPath(''); setLinkContent(false); setSeriesSelection('new'); setSeriesName(''); setSeriesRules('');
-    setCodexRun(null); setGenerationFailure(null); localStorage.removeItem('lumiterra-asset-generation-failure');
+    clearAssetWorkspace();
+  }
+
+  function cancelAssetCreation() {
+    if (working) return;
+    if (activeAsset) {
+      continueWith(activeAsset);
+      setAssetIterationOpen(false);
+      setNotice({ tone: 'success', text: '已放弃未保存调整，生成作品和历史版本仍保留' });
+      return;
+    }
+    clearAssetWorkspace();
+    setNotice({ tone: 'success', text: '已取消本次图片制作' });
   }
 
   function chooseCreationSource(next: AssetCreationSource) {
@@ -1076,7 +1301,7 @@ function AssetStudio({ workspace, refresh, setNotice, active }: { workspace: Wor
         displayedPath = image.path;
         try {
           await api({ action: 'registerGeneratedAsset', path: image.path, title, usage, prompt: activeBrief, references, parentPath, generator: 'codex', creationSource, linkedContentPaths, seriesName: activeSeriesName, seriesRules: activeSeriesName ? seriesRules : '', threadId: progress.threadId ?? resumeThreadId, conversationTurns: session.turns, conversationSummary: session.summary, knowledgePaths });
-          setSelectedAsset(image.path); setCreationMode('edit'); setReferences([image.path]);
+          setSelectedAsset(image.path); setCreationMode('edit'); setReferences([image.path]); setAssetIterationOpen(false);
           await refresh(true); setNotice({ tone: 'success', text: '图片已生成并显示，Codex 正在保存记录' });
         } catch (error) {
           setNotice({ tone: 'error', text: error instanceof Error ? error.message : '图片已生成，但登记失败' });
@@ -1088,7 +1313,7 @@ function AssetStudio({ workspace, refresh, setNotice, active }: { workspace: Wor
       if (!result) throw new Error('Codex 已完成任务，但没有检测到新图片');
       const brief = run.resultFiles.find((file) => file.path.startsWith('outputs/assets/') && /\.(md|txt)$/i.test(file.path));
       await api({ action: 'registerGeneratedAsset', path: result.path, title, usage, prompt: activeBrief, references, parentPath, generator: 'codex', briefPath: brief?.path, creationSource, linkedContentPaths, seriesName: activeSeriesName, seriesRules: activeSeriesName ? seriesRules : '', threadId: run.threadId ?? resumeThreadId, conversationTurns: session.turns, conversationSummary: session.summary, knowledgePaths });
-      setSelectedAsset(result.path); setCreationMode('edit'); setReferences([result.path]);
+      setSelectedAsset(result.path); setCreationMode('edit'); setReferences([result.path]); setAssetIterationOpen(false);
       setAdjustment('');
       await refresh(true); setNotice({ tone: 'success', text: 'Codex 已生成图片并保存到生成作品' });
     } catch (error) { setNotice({ tone: 'error', text: error instanceof Error ? error.message : '图片生成失败' }); }
@@ -1112,7 +1337,7 @@ function AssetStudio({ workspace, refresh, setNotice, active }: { workspace: Wor
         setGenerationFailure(failure); localStorage.setItem('lumiterra-asset-generation-failure', JSON.stringify(failure));
         throw new Error(failure.message);
       }
-      setSelectedAsset(result.path); setCreationMode('edit'); setReferences([result.path]);
+      setSelectedAsset(result.path); setCreationMode('edit'); setReferences([result.path]); setAssetIterationOpen(false);
       setAdjustment('');
       await refresh(true); setNotice({ tone: 'success', text: 'API 已生成图片并保存到生成作品' });
     } catch (error) { setNotice({ tone: 'error', text: error instanceof Error ? error.message : '图片生成失败' }); }
@@ -1153,8 +1378,15 @@ function AssetStudio({ workspace, refresh, setNotice, active }: { workspace: Wor
   }
 
   async function updateMetadata(path: string, changes: { role?: AssetRole; status?: 'draft' | 'adopted'; visualReference?: boolean; defaultReference?: boolean }) {
-    try { await api({ action: 'updateAssetMetadata', path, ...changes }); await refresh(true); }
-    catch (error) { setNotice({ tone: 'error', text: error instanceof Error ? error.message : '更新失败' }); }
+    try { await api({ action: 'updateAssetMetadata', path, ...changes }); await refresh(true); return true; }
+    catch (error) { setNotice({ tone: 'error', text: error instanceof Error ? error.message : '更新失败' }); return false; }
+  }
+
+  async function adoptCurrentAsset() {
+    if (!activeAsset) return;
+    if (!await updateMetadata(activeAsset.path, { status: 'adopted' })) return;
+    setAssetIterationOpen(false);
+    setNotice({ tone: 'success', text: '已采用这个版本，并退出当前编辑状态' });
   }
 
   function continueWith(file: WorkFile) {
@@ -1163,23 +1395,28 @@ function AssetStudio({ workspace, refresh, setNotice, active }: { workspace: Wor
     setSelectedAsset(file.path); setReferences([file.path]); setCreationMode('edit'); setMode('create'); setDetailAssetPath('');
     setTitle(metadata?.title ?? displayName(file));
     if (metadata?.usage) setUsage(normalizedAssetUsage(metadata.usage));
-    if (metadata?.prompt) setRequirements(metadata.prompt);
+    setMessage(savedPromptField(metadata?.prompt, '画面目标') ?? '');
+    const savedRequirements = savedPromptField(metadata?.prompt, '补充要求');
+    setRequirements(savedRequirements === '无' ? '' : savedRequirements ?? '');
+    const savedFormat = savedPromptField(metadata?.prompt, '规格');
+    if (savedFormat) setFormat(savedFormat);
     const source = metadata?.creationSource ?? (metadata?.seriesName ? 'series' : metadata?.linkedContentPaths?.length ? 'content' : 'independent');
     setCreationSource(source); setLinkedContentPath(metadata?.linkedContentPaths?.[0] ?? ''); setLinkContent(Boolean(metadata?.linkedContentPaths?.length));
     setSeriesName(metadata?.seriesName ?? ''); setSeriesRules(metadata?.seriesRules ?? ''); setSeriesSelection(metadata?.seriesName ?? 'new'); setAdjustment('');
     setKnowledgePaths(metadata?.knowledgePaths ?? []);
+    setAssetIterationOpen(true);
   }
 
   function selectVersion(file: WorkFile) {
-    setSelectedAsset(file.path); setCreationMode('edit'); setReferences([file.path]); setAdjustment(''); setKnowledgePaths(metadataFor(file.path)?.knowledgePaths ?? []);
+    setSelectedAsset(file.path); setCreationMode('edit'); setReferences([file.path]); setAdjustment(''); setKnowledgePaths(metadataFor(file.path)?.knowledgePaths ?? []); setAssetIterationOpen(false);
   }
 
   return <div className="page">
-    <SectionTitle title="素材工作室" action={<div className="library-actions">{(selectedAsset || title.trim() || message.trim() || requirements.trim()) && <button onClick={startNewCreation} type="button">新建创作</button>}<label className="upload-button">批量上传<input type="file" accept="image/*,video/mp4,video/webm,video/quicktime" onChange={upload} multiple hidden /></label></div>} />
+    <SectionTitle title="素材工作室" action={<div className="library-actions"><button onClick={startNewCreation} type="button">新建创作</button><label className="upload-button">批量上传<input type="file" accept="image/*,video/mp4,video/webm,video/quicktime" onChange={upload} multiple hidden /></label></div>} />
     <div className="workspace-tabs asset-tabs"><button className={mode === 'create' ? 'active' : ''} onClick={() => setMode('create')} type="button">图片制作</button><button className={mode === 'references' ? 'active' : ''} onClick={() => setMode('references')} type="button">参考素材 <span>{referenceAssets.length}</span></button><button className={mode === 'works' ? 'active' : ''} onClick={() => setMode('works')} type="button">生成作品 <span>{workGroups.length}</span></button></div>
 
     {mode === 'create' && <div className="asset-create-layout">
-      <section className="box asset-form"><BoxHeader title={creationMode === 'edit' ? '继续制作' : '图片制作'} />
+      <section className="box asset-form"><BoxHeader title={assetCompleted ? '已采用作品' : creationMode === 'edit' ? '继续制作' : '图片制作'} action={<button className="link-button" onClick={cancelAssetCreation} disabled={working} type="button">取消本次制作</button>} />
         <div className="creation-source-switch"><button className={creationSource === 'independent' ? 'active' : ''} onClick={() => chooseCreationSource('independent')} type="button"><strong>独立制作</strong><span>从零开始或使用参考</span></button><button className={creationSource === 'content' ? 'active' : ''} onClick={() => chooseCreationSource('content')} type="button"><strong>从内容制作</strong><span>使用现有内容作为输入</span></button><button className={creationSource === 'series' ? 'active' : ''} onClick={() => chooseCreationSource('series')} type="button"><strong>连续创作</strong><span>延续已有视觉继续迭代</span></button></div>
         <div className="asset-execution-row"><span>执行方式</span><div className="execution-switch"><button className={executionMode === 'codex' ? 'active' : ''} onClick={() => setExecutionMode('codex')} type="button">Codex ImageGen</button><button className={executionMode === 'api' ? 'active' : ''} onClick={() => setExecutionMode('api')} disabled={imageConfigured === false} title={imageConfigured === false ? '未配置 OPENAI_API_KEY' : imageModel} type="button">OpenAI API</button></div><small>{executionMode === 'api' ? imageModel : '当前 Codex 会话'}</small></div>
         {creationSource === 'content' && <div className="creation-context-block"><label>选择内容<select value={linkedContentPath} onChange={(event) => chooseContent(event.target.value)}><option value="">{message ? '当前带入内容' : '选择一条已有内容'}</option>{contentFiles.map((file) => <option value={file.path} key={file.path}>{contentPreview(file.content)}</option>)}</select></label><label className="optional-link"><input type="checkbox" checked={linkContent} disabled={!linkedContentPath} onChange={(event) => setLinkContent(event.target.checked)} /><span>生成后关联到这条内容</span></label></div>}
@@ -1190,10 +1427,23 @@ function AssetStudio({ workspace, refresh, setNotice, active }: { workspace: Wor
         <label>补充要求<textarea value={requirements} onChange={(event) => setRequirements(event.target.value)} placeholder="角色、场景、构图、氛围、配色、需要避免的内容" /></label>
         <KnowledgeReferencePicker workspace={workspace} selected={knowledgePaths} onChange={setKnowledgePaths} query={`${title}\n${message}\n${requirements}`} />
         <div className="selected-reference-block"><div><strong>本次参考</strong><span>已选 {references.length} 张</span><button onClick={() => setReferencePickerOpen(true)} type="button">选择参考</button></div>{selectedReferences.length ? <div className="selected-reference-row">{selectedReferences.map((file) => <button onClick={() => toggleReference(file.path)} key={file.path} title="移除参考" type="button"><Image src={`/api/file?path=${encodeURIComponent(file.path)}`} alt={displayName(file)} width={160} height={110} unoptimized /><span>×</span></button>)}</div> : <p>未选择参考图片</p>}</div>
-        <div className="form-actions asset-primary-actions"><button className="primary" onClick={() => runImage()} disabled={working || !title || !message || (creationSource === 'series' && !seriesName.trim()) || (executionMode === 'api' && imageConfigured !== true)} type="button">{working ? '正在生成…' : creationMode === 'edit' ? '生成新版本' : executionMode === 'api' ? '使用 API 生成' : '使用 Codex 生成'}</button><button onClick={runCodexBrief} disabled={working || !title} type="button">Codex 生成方案</button><button onClick={saveBrief} disabled={working || !title} type="button">保存创作要求</button></div>
+        <div className="form-actions asset-primary-actions"><button className="primary" onClick={() => runImage()} disabled={working || assetCompleted || !title || !message || (creationSource === 'series' && !seriesName.trim()) || (executionMode === 'api' && imageConfigured !== true)} type="button">{working ? '正在生成…' : creationMode === 'edit' ? '按当前设置生成' : executionMode === 'api' ? '使用 API 生成' : '使用 Codex 生成'}</button><button onClick={runCodexBrief} disabled={working || assetCompleted || !title} type="button">Codex 生成方案</button><button onClick={saveBrief} disabled={working || assetCompleted || !title} type="button">保存创作要求</button></div>
         <CodexRunView run={codexRun} />
       </section>
-      <aside className="box generation-result"><BoxHeader title="当前结果" />{working && <div className="generation-status"><strong>正在生成图片</strong><span>使用 {executionMode === 'api' ? imageModel : 'Codex ImageGen'} · {references.length} 张参考</span><p>复杂图片可能需要约 2 分钟，完成后会自动显示。</p></div>}{generationFailure && <div className="generation-failure"><div><strong>生成未完成</strong><button onClick={() => { setGenerationFailure(null); localStorage.removeItem('lumiterra-asset-generation-failure'); }} type="button">清除</button></div><p>{generationFailure.message}</p>{(generationFailure.code || generationFailure.requestId) && <span>{generationFailure.code ? `错误码：${generationFailure.code}` : ''}{generationFailure.code && generationFailure.requestId ? ' · ' : ''}{generationFailure.requestId ? `请求编号：${generationFailure.requestId}` : ''}</span>}</div>}{activeAsset && ['png', 'jpg', 'jpeg', 'webp'].includes(activeAsset.kind) ? <><div className="generated-preview"><Image src={`/api/file?path=${encodeURIComponent(activeAsset.path)}`} alt={activeMetadata?.title ?? displayName(activeAsset)} width={900} height={900} unoptimized /></div><div className="result-meta"><strong>{activeMetadata?.title ?? displayName(activeAsset)}</strong><span>{activeMetadata?.seriesName ? `${activeMetadata.seriesName} · ` : ''}{activeMetadata?.generator === 'api' ? activeMetadata.apiResponseId ? 'OpenAI API 多轮' : 'OpenAI API' : 'Codex ImageGen'}{activeMetadata?.version ? ` · V${activeMetadata.version}` : ''}</span></div>{activeVersions.length > 1 && <section className="current-version-section"><div><strong>版本记录</strong><span>{activeVersions.length} 个版本 · 点击查看或继续</span></div><div className="current-version-strip">{activeVersions.map((file) => { const metadata = metadataFor(file.path); return <button className={file.path === activeAsset.path ? 'active' : ''} onClick={() => selectVersion(file)} aria-current={file.path === activeAsset.path ? 'true' : undefined} title={`查看 V${metadata?.version ?? 1}`} type="button" key={file.path}><Image src={`/api/file?path=${encodeURIComponent(file.path)}`} alt={`${metadata?.title ?? displayName(file)} V${metadata?.version ?? 1}`} width={180} height={120} unoptimized /><span>V{metadata?.version ?? 1}</span><small>{metadata?.generator === 'api' ? 'API' : 'Codex'}</small></button>; })}</div></section>}<div className="creation-conversation asset-conversation"><div className="conversation-head"><strong>创作会话</strong><span>{assetTurns.length} 轮{activeMetadata?.conversationSummary ? ' · 已整理前序要求' : ''}</span></div>{assetTurns.length > 0 && <div className="conversation-turns">{assetTurns.slice(-4).map((turn, index) => <div key={turn.id}><span>{turn.provider === 'api' ? 'API' : 'Codex'} · {Math.max(1, assetTurns.length - Math.min(4, assetTurns.length) + index + 1)}</span><p>{turn.instruction}</p></div>)}</div>}<div className="iteration-box"><label>继续调整<input value={adjustment} onChange={(event) => setAdjustment(event.target.value)} placeholder="例如：下一张做 D-6，保持角色和构图" onKeyDown={(event) => { if (event.key === 'Enter' && adjustment.trim() && !working) void runImage(adjustment); }} /></label><button className="primary" onClick={() => runImage(adjustment)} disabled={working || !adjustment.trim() || (executionMode === 'api' && imageConfigured !== true)} type="button">继续生成</button></div></div><div className="result-actions"><button onClick={() => continueWith(activeAsset)} type="button">载入创作信息</button><button onClick={() => runImage()} disabled={working || (executionMode === 'api' && imageConfigured !== true)} type="button">再生成一版</button><a href={`/api/file?path=${encodeURIComponent(activeAsset.path)}`} download>下载</a><button onClick={() => updateMetadata(activeAsset.path, { visualReference: !activeMetadata?.visualReference })} type="button">{activeMetadata?.visualReference ? '取消参考标记' : '加入参考素材'}</button></div></> : !working && !generationFailure ? <Empty text="生成完成后，图片会显示在这里。" /> : null}</aside>
+      <aside className="box generation-result">
+        <BoxHeader title={assetCompleted ? '已采用版本' : '当前结果'} />
+        {working && <div className="generation-status"><strong>正在生成图片</strong><span>使用 {executionMode === 'api' ? imageModel : 'Codex ImageGen'} · {references.length} 张参考</span><p>复杂图片可能需要约 2 分钟，完成后会自动显示。</p></div>}
+        {generationFailure && <div className="generation-failure"><div><strong>生成未完成</strong><button onClick={() => { setGenerationFailure(null); localStorage.removeItem('lumiterra-asset-generation-failure'); }} type="button">清除</button></div><p>{generationFailure.message}</p>{(generationFailure.code || generationFailure.requestId) && <span>{generationFailure.code ? `错误码：${generationFailure.code}` : ''}{generationFailure.code && generationFailure.requestId ? ' · ' : ''}{generationFailure.requestId ? `请求编号：${generationFailure.requestId}` : ''}</span>}</div>}
+        {activeAsset && ['png', 'jpg', 'jpeg', 'webp'].includes(activeAsset.kind) ? <>
+          <div className="generated-preview"><Image src={`/api/file?path=${encodeURIComponent(activeAsset.path)}`} alt={activeMetadata?.title ?? displayName(activeAsset)} width={900} height={900} unoptimized /></div>
+          <div className="result-meta"><div><strong>{activeMetadata?.title ?? displayName(activeAsset)}</strong><span>{activeMetadata?.seriesName ? `${activeMetadata.seriesName} · ` : ''}{activeMetadata?.generator === 'api' ? activeMetadata.apiResponseId ? 'OpenAI API 多轮' : 'OpenAI API' : 'Codex ImageGen'}{activeMetadata?.version ? ` · V${activeMetadata.version}` : ''}</span></div><span className={`status-badge ${activeMetadata?.status === 'adopted' ? 'adopted' : ''}`}>{activeMetadata?.status === 'adopted' ? '已采用' : '草稿'}</span></div>
+          {activeVersions.length > 1 && <section className="current-version-section"><div><strong>版本记录</strong><span>{activeVersions.length} 个版本 · 点击查看</span></div><div className="current-version-strip">{activeVersions.map((file) => { const metadata = metadataFor(file.path); return <button className={file.path === activeAsset.path ? 'active' : ''} onClick={() => selectVersion(file)} aria-current={file.path === activeAsset.path ? 'true' : undefined} title={`查看 V${metadata?.version ?? 1}`} type="button" key={file.path}><Image src={`/api/file?path=${encodeURIComponent(file.path)}`} alt={`${metadata?.title ?? displayName(file)} V${metadata?.version ?? 1}`} width={180} height={120} unoptimized /><span>V{metadata?.version ?? 1}</span><small>{metadata?.generator === 'api' ? 'API' : 'Codex'}</small></button>; })}</div></section>}
+
+          {assetCompleted ? <div className="asset-complete-state"><div><span>已采用 · 已进入生成作品</span><strong>这个版本已退出当前制作状态</strong></div><div><button onClick={() => { continueWith(activeAsset); setAssetIterationOpen(true); }} type="button">基于此图继续迭代</button><button className="primary" onClick={startNewCreation} type="button">开始新图片</button></div></div> : <div className="creation-conversation asset-conversation"><div className="conversation-head"><strong>继续调整当前版本</strong><span>{assetTurns.length} 轮{activeMetadata?.conversationSummary ? ' · 已整理前序要求' : ''}</span></div>{assetTurns.length > 0 && <details className="conversation-history-details"><summary>查看最近 {Math.min(4, assetTurns.length)} 轮调整</summary><div className="conversation-turns">{assetTurns.slice(-4).map((turn, index) => <div key={turn.id}><span>{turn.provider === 'api' ? 'API' : 'Codex'} · {Math.max(1, assetTurns.length - Math.min(4, assetTurns.length) + index + 1)}</span><p>{turn.instruction}</p></div>)}</div></details>}<div className="iteration-box"><label>本轮调整（可选）<input value={adjustment} onChange={(event) => setAdjustment(event.target.value)} placeholder="不填写则按当前要求再生成一版" onKeyDown={(event) => { if (event.key === 'Enter' && !working) void runImage(adjustment); }} /></label><button className="primary" onClick={() => runImage(adjustment)} disabled={working || (executionMode === 'api' && imageConfigured !== true)} type="button">{adjustment.trim() ? '继续修改' : '再生成一版'}</button></div></div>}
+
+          <div className="result-actions">{activeMetadata?.status !== 'adopted' && <button className="primary" onClick={adoptCurrentAsset} type="button">采用此版本</button>}<a href={`/api/file?path=${encodeURIComponent(activeAsset.path)}`} download>下载</a><button onClick={() => updateMetadata(activeAsset.path, { visualReference: !activeMetadata?.visualReference })} type="button">{activeMetadata?.visualReference ? '取消参考标记' : '加入参考素材'}</button></div>
+        </> : !working && !generationFailure ? <Empty text="生成完成后，图片会显示在这里。" /> : null}
+      </aside>
     </div>}
 
     {mode === 'references' && <section className="box asset-library compact-library">
@@ -1345,6 +1595,144 @@ function AssetStudioLegacy({ workspace, refresh, setNotice }: { workspace: Works
         <div className="asset-grid">{filteredAssets.map((file) => <AssetCard file={file} metadata={workspace.assetMetadata.find((item) => item.path === file.path)} onSelect={() => setSelectedAsset(file.path)} key={file.path} />)}</div>
       </section>
     </div>}
+  </div>;
+}
+
+type MarketingKind = 'timeline' | 'todo';
+type MarketingSelection = { kind: MarketingKind; id: string } | null;
+type MarketingEditorState = {
+  kind: MarketingKind;
+  id?: string;
+  title: string;
+  startDate: string;
+  endDate: string;
+  dueDate: string;
+  status: string;
+  notes: string;
+  tags: string;
+  timelineId: string;
+  contentPaths: string[];
+  assetPaths: string[];
+};
+
+function localDateValue(date = new Date()) {
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
+}
+
+function marketingStatusLabel(kind: MarketingKind, status: string) {
+  if (kind === 'timeline') return ({ planned: '计划中', active: '进行中', done: '已结束' } as Record<string, string>)[status] ?? status;
+  return ({ todo: '待做', doing: '进行中', done: '已完成' } as Record<string, string>)[status] ?? status;
+}
+
+function MarketingLinkedOutputs({ contentPaths, assetPaths, contentFiles, assetFiles, setView }: { contentPaths: string[]; assetPaths: string[]; contentFiles: WorkFile[]; assetFiles: WorkFile[]; setView: (view: View) => void }) {
+  const linkedContent = contentPaths.flatMap((path) => { const file = contentFiles.find((entry) => entry.path === path); return file ? [file] : []; });
+  const linkedAssets = assetPaths.flatMap((path) => { const file = assetFiles.find((entry) => entry.path === path); return file ? [file] : []; });
+  return <div className="marketing-linked"><div className="marketing-subhead"><strong>关联内容</strong><span>仅作引用，不会改变原记录</span></div>{linkedContent.length === 0 && linkedAssets.length === 0 ? <p className="marketing-muted">暂未关联推文或素材。</p> : <>{linkedContent.map((file) => <button onClick={() => setView('content')} type="button" key={file.path}><span>推文</span><strong>{contentPreview(file.content)}</strong></button>)}{linkedAssets.map((file) => <button onClick={() => setView('assets')} type="button" key={file.path}><span>素材</span><strong>{displayName(file)}</strong></button>)}</>}</div>;
+}
+
+function MarketingBoard({ workspace, refresh, setNotice, setView }: { workspace: Workspace; refresh: (silent?: boolean) => Promise<void>; setNotice: (notice: Notice) => void; setView: (view: View) => void }) {
+  const [selected, setSelected] = useState<MarketingSelection>(null);
+  const [editor, setEditor] = useState<MarketingEditorState | null>(null);
+  const [saving, setSaving] = useState(false);
+  const marketing = workspace.marketing ?? { timeline: [], todos: [] };
+  const timeline = [...marketing.timeline].sort((a, b) => a.startDate.localeCompare(b.startDate) || b.updatedAt.localeCompare(a.updatedAt));
+  const todos = [...marketing.todos].sort((a, b) => (a.status === 'done' ? 1 : 0) - (b.status === 'done' ? 1 : 0) || (a.dueDate || '9999').localeCompare(b.dueDate || '9999') || b.updatedAt.localeCompare(a.updatedAt));
+  const contentFiles = workspace.outputs.filter((file) => file.path.startsWith('outputs/twitter/'));
+  const assetFiles = workspace.outputs.filter((file) => file.path.startsWith('outputs/assets/'));
+  const activeTimeline = selected?.kind === 'timeline' ? marketing.timeline.find((item) => item.id === selected.id) : undefined;
+  const activeTodo = selected?.kind === 'todo' ? marketing.todos.find((item) => item.id === selected.id) : undefined;
+  const linkedTodos = activeTimeline ? todos.filter((item) => item.timelineId === activeTimeline.id) : [];
+
+  function newEditor(kind: MarketingKind): MarketingEditorState {
+    return { kind, title: '', startDate: localDateValue(), endDate: '', dueDate: '', status: kind === 'timeline' ? 'planned' : 'todo', notes: '', tags: '', timelineId: '', contentPaths: [], assetPaths: [] };
+  }
+
+  function editTimeline(item: MarketingTimelineItem) {
+    setEditor({ kind: 'timeline', id: item.id, title: item.title, startDate: item.startDate, endDate: item.endDate ?? '', dueDate: '', status: item.status, notes: item.notes ?? '', tags: item.tags.join(', '), timelineId: '', contentPaths: item.contentPaths, assetPaths: item.assetPaths });
+  }
+
+  function editTodo(item: MarketingTodo) {
+    setEditor({ kind: 'todo', id: item.id, title: item.title, startDate: '', endDate: '', dueDate: item.dueDate ?? '', status: item.status, notes: item.notes ?? '', tags: '', timelineId: item.timelineId ?? '', contentPaths: item.contentPaths, assetPaths: item.assetPaths });
+  }
+
+  async function saveItem() {
+    if (!editor?.title.trim()) return;
+    setSaving(true);
+    try {
+      const item = await api<MarketingTimelineItem | MarketingTodo>({
+        action: 'saveMarketingItem', ...editor,
+        tags: editor.tags.split(/[,，\s]+/).filter(Boolean),
+      });
+      await refresh(true);
+      setSelected({ kind: editor.kind, id: item.id });
+      setEditor(null);
+      setNotice({ tone: 'success', text: editor.id ? 'Marketing 记录已更新' : 'Marketing 记录已创建' });
+    } catch (error) { setNotice({ tone: 'error', text: error instanceof Error ? error.message : '保存失败' }); }
+    finally { setSaving(false); }
+  }
+
+  async function removeItem(kind: MarketingKind, id: string) {
+    if (!window.confirm('只会删除这条 Marketing 记录；关联的推文和素材不会删除。确认删除吗？')) return;
+    try {
+      await api({ action: 'deleteMarketingItem', kind, id });
+      setSelected(null);
+      await refresh(true);
+      setNotice({ tone: 'success', text: kind === 'timeline' ? 'Timeline 事项已删除，原内容与素材均已保留' : 'Todo 已删除，原内容与素材均已保留' });
+    } catch (error) { setNotice({ tone: 'error', text: error instanceof Error ? error.message : '删除失败' }); }
+  }
+
+  async function duplicate(kind: MarketingKind, item: MarketingTimelineItem | MarketingTodo) {
+    try {
+      const saved = kind === 'timeline'
+        ? await api<MarketingTimelineItem>({ action: 'saveMarketingItem', kind, title: `${item.title} 副本`, startDate: (item as MarketingTimelineItem).startDate, endDate: (item as MarketingTimelineItem).endDate, status: 'planned', notes: item.notes, tags: (item as MarketingTimelineItem).tags, contentPaths: item.contentPaths, assetPaths: item.assetPaths })
+        : await api<MarketingTodo>({ action: 'saveMarketingItem', kind, title: `${item.title} 副本`, dueDate: (item as MarketingTodo).dueDate, status: 'todo', notes: item.notes, timelineId: (item as MarketingTodo).timelineId, contentPaths: item.contentPaths, assetPaths: item.assetPaths });
+      await refresh(true);
+      setSelected({ kind, id: saved.id });
+      setNotice({ tone: 'success', text: '已复制为一条新的记录' });
+    } catch (error) { setNotice({ tone: 'error', text: error instanceof Error ? error.message : '复制失败' }); }
+  }
+
+  async function updateTodoStatus(item: MarketingTodo, status: MarketingTodo['status']) {
+    try {
+      await api({ action: 'saveMarketingItem', kind: 'todo', ...item, status });
+      await refresh(true);
+    } catch (error) { setNotice({ tone: 'error', text: error instanceof Error ? error.message : '更新失败' }); }
+  }
+
+  function togglePath(field: 'contentPaths' | 'assetPaths', path: string) {
+    if (!editor) return;
+    setEditor({ ...editor, [field]: editor[field].includes(path) ? editor[field].filter((item) => item !== path) : [...editor[field], path] });
+  }
+
+  return <div className="page marketing-page">
+    <SectionTitle title="Marketing" action={<div className="marketing-title-actions"><button onClick={() => setEditor(newEditor('todo'))} type="button">新建 Todo</button><button className="primary" onClick={() => setEditor(newEditor('timeline'))} type="button">新建 Timeline</button></div>} />
+    <div className="marketing-intro"><div><strong>把阶段计划和执行事项放在一起</strong><span>推文与素材只在需要时关联，不会被自动归集。</span></div><div><span>{timeline.filter((item) => item.status !== 'done').length} 个进行中计划</span><span>{todos.filter((item) => item.status !== 'done').length} 项待完成</span></div></div>
+    <div className="marketing-board-grid">
+      <section className="box marketing-column"><BoxHeader title="Timeline" action={<button onClick={() => setEditor(newEditor('timeline'))} type="button">＋ 添加计划</button>} />
+        {timeline.length === 0 ? <div className="marketing-empty"><strong>还没有运营计划</strong><p>先记录一个阶段、Campaign 或重要发布时间段。</p><button onClick={() => setEditor(newEditor('timeline'))} type="button">添加第一项</button></div> : <div className="timeline-list">{timeline.map((item) => <button className="marketing-row" onClick={() => setSelected({ kind: 'timeline', id: item.id })} type="button" key={item.id}><span className="timeline-date"><b>{item.startDate.slice(5).replace('-', '/')}</b>{item.endDate && <small>— {item.endDate.slice(5).replace('-', '/')}</small>}</span><span className="marketing-row-main"><strong>{item.title}</strong><small>{item.tags.slice(0, 3).map((tag) => `#${tag}`).join('  ') || '未设置标签'}</small></span><span className={`marketing-status ${item.status}`}>{marketingStatusLabel('timeline', item.status)}</span><span className="marketing-link-count">{item.contentPaths.length + item.assetPaths.length ? `关联 ${item.contentPaths.length + item.assetPaths.length}` : '未关联'}</span></button>)}</div>}
+      </section>
+      <section className="box marketing-column"><BoxHeader title="Todo" action={<button onClick={() => setEditor(newEditor('todo'))} type="button">＋ 添加任务</button>} />
+        {todos.length === 0 ? <div className="marketing-empty"><strong>还没有待办</strong><p>Todo 可以独立存在，也可以归入某个 Timeline。</p><button onClick={() => setEditor(newEditor('todo'))} type="button">添加第一项</button></div> : <div className="todo-list">{todos.map((item) => <div className={`todo-row ${item.status}`} key={item.id}><button className="todo-check" aria-label="更新完成状态" onClick={() => updateTodoStatus(item, item.status === 'done' ? 'todo' : 'done')} type="button">{item.status === 'done' ? '✓' : ''}</button><button className="todo-main" onClick={() => setSelected({ kind: 'todo', id: item.id })} type="button"><strong>{item.title}</strong><small>{item.timelineId ? timeline.find((entry) => entry.id === item.timelineId)?.title || '未规划' : '独立任务'}{item.dueDate ? ` · ${item.dueDate.slice(5).replace('-', '/')}` : ''}</small></button>{item.status !== 'done' && <button className="todo-state" onClick={() => updateTodoStatus(item, item.status === 'todo' ? 'doing' : 'todo')} type="button">{marketingStatusLabel('todo', item.status)}</button>}</div>)}</div>}
+      </section>
+    </div>
+
+    {(activeTimeline || activeTodo) && <div className="drawer-backdrop" onMouseDown={() => setSelected(null)}><aside className="marketing-detail-drawer" onMouseDown={(event) => event.stopPropagation()}>{activeTimeline ? <>
+      <header className="drawer-header"><div><span>Timeline</span><h2>{activeTimeline.title}</h2></div><button onClick={() => setSelected(null)} type="button">关闭</button></header>
+      <div className="marketing-detail-body"><div className="marketing-detail-meta"><span className={`marketing-status ${activeTimeline.status}`}>{marketingStatusLabel('timeline', activeTimeline.status)}</span><span>{activeTimeline.startDate}{activeTimeline.endDate ? ` — ${activeTimeline.endDate}` : ''}</span></div>{activeTimeline.notes && <p className="marketing-notes">{activeTimeline.notes}</p>}{activeTimeline.tags.length > 0 && <p className="marketing-tags">{activeTimeline.tags.map((tag) => `#${tag}`).join('  ')}</p>}<div className="marketing-subhead"><strong>该计划下的 Todo</strong><span>{linkedTodos.length} 项</span></div>{linkedTodos.length ? linkedTodos.map((todo) => <button className="marketing-related-todo" onClick={() => setSelected({ kind: 'todo', id: todo.id })} type="button" key={todo.id}><strong>{todo.title}</strong><span>{marketingStatusLabel('todo', todo.status)}</span></button>) : <p className="marketing-muted">暂未归入 Todo。</p>}<MarketingLinkedOutputs contentPaths={activeTimeline.contentPaths} assetPaths={activeTimeline.assetPaths} contentFiles={contentFiles} assetFiles={assetFiles} setView={setView} /></div>
+      <footer className="marketing-detail-actions"><button onClick={() => duplicate('timeline', activeTimeline)} type="button">复制</button><button onClick={() => editTimeline(activeTimeline)} type="button">编辑</button><button className="danger" onClick={() => removeItem('timeline', activeTimeline.id)} type="button">删除</button></footer>
+    </> : activeTodo ? <>
+      <header className="drawer-header"><div><span>Todo</span><h2>{activeTodo.title}</h2></div><button onClick={() => setSelected(null)} type="button">关闭</button></header>
+      <div className="marketing-detail-body"><div className="marketing-detail-meta"><span className={`marketing-status ${activeTodo.status}`}>{marketingStatusLabel('todo', activeTodo.status)}</span><span>{activeTodo.dueDate ? `截止 ${activeTodo.dueDate}` : '未设置截止日期'}</span></div>{activeTodo.timelineId && <button className="marketing-parent-link" onClick={() => setSelected({ kind: 'timeline', id: activeTodo.timelineId! })} type="button">归入：{timeline.find((item) => item.id === activeTodo.timelineId)?.title || '未规划'}</button>}{activeTodo.notes && <p className="marketing-notes">{activeTodo.notes}</p>}<MarketingLinkedOutputs contentPaths={activeTodo.contentPaths} assetPaths={activeTodo.assetPaths} contentFiles={contentFiles} assetFiles={assetFiles} setView={setView} /></div>
+      <footer className="marketing-detail-actions"><button onClick={() => duplicate('todo', activeTodo)} type="button">复制</button><button onClick={() => editTodo(activeTodo)} type="button">编辑</button><button className="danger" onClick={() => removeItem('todo', activeTodo.id)} type="button">删除</button></footer>
+    </> : null}</aside></div>}
+
+    {editor && <div className="marketing-modal-backdrop" onMouseDown={() => !saving && setEditor(null)}><section className="marketing-editor" onMouseDown={(event) => event.stopPropagation()}><header><div><span>{editor.kind === 'timeline' ? 'Timeline' : 'Todo'}</span><h2>{editor.id ? '编辑记录' : editor.kind === 'timeline' ? '新建计划' : '新建任务'}</h2></div><button onClick={() => setEditor(null)} disabled={saving} type="button">关闭</button></header><div className="marketing-editor-body">
+      <label className="marketing-wide">名称<input autoFocus value={editor.title} onChange={(event) => setEditor({ ...editor, title: event.target.value })} placeholder={editor.kind === 'timeline' ? '例如：V2 预热阶段' : '例如：完成机制预告推文'} /></label>
+      {editor.kind === 'timeline' ? <><label>开始日期<input type="date" value={editor.startDate} onChange={(event) => setEditor({ ...editor, startDate: event.target.value })} /></label><label>结束日期（可选）<input type="date" min={editor.startDate} value={editor.endDate} onChange={(event) => setEditor({ ...editor, endDate: event.target.value })} /></label><label>状态<select value={editor.status} onChange={(event) => setEditor({ ...editor, status: event.target.value })}><option value="planned">计划中</option><option value="active">进行中</option><option value="done">已结束</option></select></label><label>标签（可选）<input value={editor.tags} onChange={(event) => setEditor({ ...editor, tags: event.target.value })} placeholder="预热, Twitter" /></label></> : <><label>截止日期（可选）<input type="date" value={editor.dueDate} onChange={(event) => setEditor({ ...editor, dueDate: event.target.value })} /></label><label>状态<select value={editor.status} onChange={(event) => setEditor({ ...editor, status: event.target.value })}><option value="todo">待做</option><option value="doing">进行中</option><option value="done">已完成</option></select></label><label className="marketing-wide">归入 Timeline（可选）<select value={editor.timelineId} onChange={(event) => setEditor({ ...editor, timelineId: event.target.value })}><option value="">不归入计划，作为独立任务</option>{timeline.map((item) => <option value={item.id} key={item.id}>{item.title}</option>)}</select></label></>}
+      <label className="marketing-wide">备注（可选）<textarea value={editor.notes} onChange={(event) => setEditor({ ...editor, notes: event.target.value })} placeholder="记录目标、要求或协作信息…" /></label>
+      <details className="marketing-link-picker marketing-wide"><summary><span><strong>关联已有推文</strong><small>可选 · 已选 {editor.contentPaths.length}</small></span><b>选择</b></summary><div>{contentFiles.length ? contentFiles.map((file) => <label key={file.path}><input type="checkbox" checked={editor.contentPaths.includes(file.path)} onChange={() => togglePath('contentPaths', file.path)} /><span><strong>{contentPreview(file.content)}</strong><small>{formatTime(file.updatedAt)}</small></span></label>) : <p>内容创作中还没有可关联的记录。</p>}</div></details>
+      <details className="marketing-link-picker marketing-wide"><summary><span><strong>关联已有素材</strong><small>可选 · 已选 {editor.assetPaths.length}</small></span><b>选择</b></summary><div>{assetFiles.length ? assetFiles.map((file) => <label key={file.path}><input type="checkbox" checked={editor.assetPaths.includes(file.path)} onChange={() => togglePath('assetPaths', file.path)} /><span><strong>{displayName(file)}</strong><small>{formatTime(file.updatedAt)}</small></span></label>) : <p>素材工作室中还没有可关联的记录。</p>}</div></details>
+    </div><footer><span>关联只建立引用，不会移动或修改原内容。</span><div><button onClick={() => setEditor(null)} disabled={saving} type="button">取消</button><button className="primary" onClick={saveItem} disabled={saving || !editor.title.trim()} type="button">{saving ? '保存中…' : '保存'}</button></div></footer></section></div>}
   </div>;
 }
 
