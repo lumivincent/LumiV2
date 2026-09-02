@@ -66,3 +66,7 @@
 - 2026-09-02T04:47:31.206Z [产出] The next time you enter Lumiterra, the forest may no longer be waiting f
 - 2026-09-02T04:49:08.208Z [内容记忆] 定稿「The continent of Lumiterra is about to move on its own.」
 - 2026-09-02T05:55:00.000Z [工作台] 新增独立 Marketing 入口、可自定义 Timeline / Todo 和按需内容素材关联
+- 2026-09-02T05:55:56.817Z [素材] 上传 海报风格优化
+- 2026-09-02T05:55:56.824Z [图片生成] 海报风格优化
+- 2026-09-02T06:20:00.000Z [部署] 完成 Railway standalone、Volume 持久化、健康检查和访问保护适配
+- 2026-09-02T06:11:40.981Z [来源同步] 需求文档 +23/-12；数值文档 +428/-96

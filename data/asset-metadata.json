@@ -1,5 +1,32 @@
 [
   {
+    "path": "outputs/assets/2026-09-02T05-55-56-811Z-海报风格优化.png",
+    "title": "海报风格优化",
+    "source": "generated",
+    "generator": "api",
+    "status": "draft",
+    "createdAt": "2026-09-02T05:55:56.823Z",
+    "usage": "社交内容配图",
+    "prompt": "素材类型：图片\n创作来源：独立制作\n用途：社交内容配图\n画面目标：新的美术风格HD-2D\n规格：16:9\n补充要求：你可以先全网检索八方旅人的游戏风格，然后沉淀成你的技能，帮我本次参考资料的图直接转成相同的HD-2D风格\n参考素材：outputs/assets/2026-08-27T13-11-47-811Z-农场.png\n内容关联：无\n\n请使用所附参考图片中的角色、世界观、配色或构图信息；保持官方视觉一致，不要伪造或自行重绘不确定的 Logo。只生成一个图片版本。",
+    "references": [
+      "outputs/assets/2026-08-27T13-11-47-811Z-农场.png"
+    ],
+    "groupId": "海报风格优化",
+    "version": 1,
+    "creationSource": "independent",
+    "linkedContentPaths": [],
+    "conversationTurns": [
+      {
+        "id": "1788328438709-w1od13",
+        "instruction": "首次生成：新的美术风格HD-2D",
+        "provider": "api",
+        "createdAt": "2026-09-02T05:53:58.709Z"
+      }
+    ],
+    "conversationSummary": "",
+    "knowledgePaths": []
+  },
+  {
     "path": "outputs/assets/2026-09-02T03-43-31-912Z-内容配图.png",
     "title": "内容配图",
     "source": "generated",

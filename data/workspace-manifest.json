@@ -1,15 +1,15 @@
 {
-  "lastSyncAt": "2026-09-02T01:30:57.265Z",
+  "lastSyncAt": "2026-09-02T06:11:40.981Z",
   "sources": {
     "requirements": {
-      "url": "https://lumiterra-balance-lab.vercel.app/requirements.md",
-      "hash": "9b64f3c7bccf5a0a2f65628f6aa8cdb292d1cbd6b6831e6a8c3071b7cddd0966",
-      "updatedAt": "2026-09-02T01:30:57.265Z"
+      "hash": "491a74606f62c8b5c855be9ec19cbf039eb5810f2cc67ead8a87f61c86581f14",
+      "updatedAt": "2026-09-02T06:11:40.981Z",
+      "url": "https://lumiterra-balance-lab.vercel.app/requirements.md"
     },
     "numeric": {
-      "url": "https://lumiterra-balance-lab.vercel.app/numeric-core.md",
-      "hash": "957385082ba8c8df4511b1aa6be378c6a47891def48cea1c698edab17b1f0a19",
-      "updatedAt": "2026-09-02T01:30:57.265Z"
+      "hash": "7911990f69f44e8d5d23f94adbc5cf3b9b7fdf3c86989aba99535febdec77a02",
+      "updatedAt": "2026-09-02T06:11:40.981Z",
+      "url": "https://lumiterra-balance-lab.vercel.app/numeric-core.md"
     }
   }
 }

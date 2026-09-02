@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { basename, extname, join, relative, resolve } from 'node:path';
 
-const ROOT = resolve(/* turbopackIgnore: true */ process.cwd());
+const ROOT = resolve(/* turbopackIgnore: true */ process.env.WORKSPACE_ROOT?.trim() || process.cwd());
 const MEMORY_DIR = join(ROOT, 'memory');
 const SOURCES_DIR = join(ROOT, 'sources');
 const RECORDS_DIR = join(ROOT, 'records');

@@ -1,4 +1,20 @@
 {
-  "timeline": [],
+  "timeline": [
+    {
+      "id": "7cad1c04-49a1-41c5-8a96-0328782a748c",
+      "title": "Test:预热推特",
+      "startDate": "2026-09-02",
+      "status": "planned",
+      "tags": [],
+      "contentPaths": [
+        "outputs/twitter/2026-08-31T07-15-30-902Z-api-ok.md"
+      ],
+      "assetPaths": [
+        "outputs/assets/2026-09-02T03-39-11-637Z-内容配图.png"
+      ],
+      "createdAt": "2026-09-02T06:06:32.236Z",
+      "updatedAt": "2026-09-02T06:06:32.236Z"
+    }
+  ],
   "todos": []
 }

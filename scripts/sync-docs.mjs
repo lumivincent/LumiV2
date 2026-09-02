@@ -5,7 +5,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
-const root = dirname(dirname(fileURLToPath(import.meta.url)));
+const bundledRoot = dirname(dirname(fileURLToPath(import.meta.url)));
+const root = process.env.WORKSPACE_ROOT?.trim() || bundledRoot;
 const upstreamDir = join(root, 'sources');
 const snapshotDir = join(root, 'snapshots', 'sources');
 const manifestPath = join(root, 'data', 'workspace-manifest.json');

@@ -5,7 +5,7 @@ import { getCACertificates } from 'node:tls';
 import { openAIProxyUrl } from '@/lib/openai-fetch';
 import { cancelRequest, completeRequest, createRecord, getWorkspace, saveOutput } from '@/lib/workspace-store';
 
-const ROOT = resolve(/* turbopackIgnore: true */ process.cwd());
+const ROOT = resolve(/* turbopackIgnore: true */ process.env.WORKSPACE_ROOT?.trim() || process.cwd());
 const OUTPUTS_DIR = join(ROOT, 'outputs');
 
 export type CodexResultFile = {

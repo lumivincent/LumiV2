@@ -12,7 +12,7 @@
       "requirements": "9b64f3c7bccf5a0a2f65628f6aa8cdb292d1cbd6b6831e6a8c3071b7cddd0966",
       "numeric": "957385082ba8c8df4511b1aa6be378c6a47891def48cea1c698edab17b1f0a19"
     },
-    "reviewRequired": false,
+    "reviewRequired": true,
     "generator": "api",
     "model": "gpt-5.6-sol",
     "apiUsage": {
@@ -117,7 +117,7 @@
       "requirements": "9b64f3c7bccf5a0a2f65628f6aa8cdb292d1cbd6b6831e6a8c3071b7cddd0966",
       "numeric": "957385082ba8c8df4511b1aa6be378c6a47891def48cea1c698edab17b1f0a19"
     },
-    "reviewRequired": false,
+    "reviewRequired": true,
     "generator": "api",
     "model": "gpt-5.6-sol",
     "apiUsage": {
