@@ -14,6 +14,13 @@ const sourceBase = 'https://lumiterra-balance-lab.vercel.app';
 const documents = [
   { id: 'requirements', filename: 'requirements.md' },
   { id: 'numeric', filename: 'numeric-core.md' },
+  { id: 'agent', filename: 'agent-prototype.js', url: `${sourceBase}/agent-prototype.js?v=20260902-2` },
+  { id: 'lottery', filename: 'lottery-prototype.js' },
+];
+const prototypeAssets = [
+  { filename: 'prototype-base.css', url: `${sourceBase}/styles.css?v=20260902-10` },
+  { filename: 'agent-prototype.css', url: `${sourceBase}/agent-prototype.css?v=20260902-3` },
+  { filename: 'lottery-prototype.css', url: `${sourceBase}/lottery-prototype.css?v=20260901-2` },
 ];
 const run = promisify(execFile);
 
@@ -27,7 +34,7 @@ async function download(url) {
     const powershell = join(process.env.WINDIR ?? 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
     const { stdout } = await run(
       powershell,
-      ['-NoProfile', '-Command', `(Invoke-WebRequest -UseBasicParsing '${url}').Content`],
+      ['-NoProfile', '-Command', `[Console]::Out.Write((Invoke-WebRequest -UseBasicParsing '${url}').Content)`],
       { encoding: 'utf8', maxBuffer: 4 * 1024 * 1024 },
     );
     return stdout;
@@ -48,9 +55,10 @@ try {
 const checkedAt = new Date().toISOString();
 const stamp = checkedAt.replaceAll(':', '-').replaceAll('.', '-');
 const nextManifest = { lastSyncAt: checkedAt, sources: {} };
+const downloads = await Promise.all(documents.map(async ({ id, filename, url = `${sourceBase}/${filename}` }) => ({ id, filename, url, content: await download(url) })));
+const assetDownloads = await Promise.all(prototypeAssets.map(async ({ filename, url }) => ({ filename, content: await download(url) })));
 
-for (const { id, filename } of documents) {
-  const content = await download(`${sourceBase}/${filename}`);
+for (const { id, filename, url, content } of downloads) {
   const hash = createHash('sha256').update(content).digest('hex');
   const previous = previousManifest.sources?.[id];
   const changed = previous?.hash !== hash;
@@ -65,11 +73,16 @@ for (const { id, filename } of documents) {
   }
 
   nextManifest.sources[id] = {
-    url: `${sourceBase}/${filename}`,
+    url,
     hash,
     updatedAt: changed ? checkedAt : (previous?.updatedAt ?? checkedAt),
   };
   console.log(`${changed ? 'UPDATED' : 'CURRENT'} ${filename}`);
+}
+
+for (const { filename, content } of assetDownloads) {
+  await writeFile(join(upstreamDir, filename), content, 'utf8');
+  console.log(`CURRENT ${filename}`);
 }
 
 await writeFile(manifestPath, `${JSON.stringify(nextManifest, null, 2)}\n`, 'utf8');

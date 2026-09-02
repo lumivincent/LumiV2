@@ -1,0 +1,14 @@
+{
+  "id": "2026-09-02-local-workspace-v1",
+  "entries": [
+    "AGENTS.md",
+    "memory",
+    "sources",
+    "records",
+    "outputs",
+    "knowledge",
+    "snapshots",
+    "data"
+  ],
+  "strategy": "overwrite-matching-keep-remote-only"
+}

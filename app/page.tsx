@@ -10,16 +10,16 @@ type View = 'dashboard' | 'documents' | 'marketing' | 'content' | 'assets' | 'kn
 type MemoryKey = 'current' | 'openQuestions' | 'changelog';
 type OutputCategory = 'documents' | 'twitter' | 'assets';
 type Notice = { tone: 'success' | 'error'; text: string } | null;
-type Source = { id: string; title: string; filename: string; url: string; content: string; updatedAt: string; hash: string };
+type Source = { id: string; title: string; filename: string; url: string; viewUrl?: string; externalUrl?: string; format?: 'prototype'; content: string; analysisOverview?: string; analysisContent?: string; updatedAt: string; hash: string };
 type WorkFile = { path: string; name: string; kind: string; updatedAt: string; size: number; content?: string };
 type SourceSnapshot = WorkFile & { sourceId: string };
 type SourceChange = { id: string; title: string; changed: boolean; added: number; removed: number; addedLines: string[]; removedLines: string[] };
 type AssetRole = '未分类' | '角色' | '场景' | 'Gameplay' | 'Logo' | '风格' | 'UI';
-type AssetCreationSource = 'independent' | 'content' | 'series';
+type AssetCreationSource = 'independent' | 'edit' | 'content' | 'series';
 type ExecutionMode = 'codex' | 'api';
 type CreationTurn = { id: string; instruction: string; provider: ExecutionMode; createdAt: string };
 type ImageGenerationFailure = { message: string; code?: string; requestId?: string; failedAt: string };
-type AssetMetadata = { path: string; title: string; source: 'upload' | 'generated'; createdAt: string; generator?: 'codex' | 'api'; status?: 'draft' | 'adopted'; role?: AssetRole; usage?: string; prompt?: string; references?: string[]; parentPath?: string; visualReference?: boolean; defaultReference?: boolean; groupId?: string; version?: number; briefPath?: string; sessionPath?: string; creationSource?: AssetCreationSource; linkedContentPaths?: string[]; seriesName?: string; seriesRules?: string; threadId?: string; apiResponseId?: string; conversationTurns?: CreationTurn[]; conversationSummary?: string; knowledgePaths?: string[] };
+type AssetMetadata = { path: string; assetCode?: string; title: string; source: 'upload' | 'generated'; createdAt: string; generator?: 'codex' | 'api'; status?: 'draft' | 'adopted'; role?: AssetRole; usage?: string; prompt?: string; references?: string[]; parentPath?: string; visualReference?: boolean; defaultReference?: boolean; groupId?: string; version?: number; briefPath?: string; sessionPath?: string; creationSource?: AssetCreationSource; linkedContentPaths?: string[]; seriesName?: string; seriesRules?: string; threadId?: string; apiResponseId?: string; conversationTurns?: CreationTurn[]; conversationSummary?: string; knowledgePaths?: string[] };
 type ContentFormat = 'post' | 'thread' | 'reply' | 'quote' | 'other';
 type ContentLanguage = 'en' | 'zh' | 'bilingual';
 type ContentStatus = 'draft' | 'final' | 'published';
@@ -35,7 +35,7 @@ type KnowledgeStatus = 'inbox' | 'processed' | 'recorded' | 'active' | 'draft' |
 type KnowledgeMetadata = { id: string; type: KnowledgeItemType; path: string; title: string; status: KnowledgeStatus; createdAt: string; updatedAt: string; version: number; contentHash: string; topicIds: string[]; tags: string[]; relatedIds: string[]; sourceUrl?: string; reason?: string; supersedesId?: string; archivedAt?: string };
 type KnowledgeUsage = { id: string; createdAt: string; itemVersions: Array<{ id: string; version: number; contentHash: string }>; sourceHashes: Record<string, string>; targetPath?: string };
 type AssistantMessage = { id: string; role: 'user' | 'assistant'; content: string; createdAt: string };
-type AssistantSession = { id: string; kind: 'knowledge' | 'analysis'; title: string; provider: ExecutionMode; lastProvider?: ExecutionMode; status: 'active' | 'completed'; createdAt: string; updatedAt: string; messages: AssistantMessage[]; knowledgePaths: string[]; includeSources: boolean; apiResponseId?: string; codexThreadId?: string; outputPath?: string };
+type AssistantSession = { id: string; kind: 'knowledge' | 'analysis'; title: string; provider: ExecutionMode; lastProvider?: ExecutionMode; status: 'active' | 'completed'; createdAt: string; updatedAt: string; messages: AssistantMessage[]; knowledgePaths: string[]; includeSources: boolean; sourceIds?: string[]; apiResponseId?: string; codexThreadId?: string; outputPath?: string };
 type MarketingTimelineItem = { id: string; title: string; startDate: string; endDate?: string; status: 'planned' | 'active' | 'done'; notes?: string; tags: string[]; contentPaths: string[]; assetPaths: string[]; createdAt: string; updatedAt: string };
 type MarketingTodo = { id: string; title: string; dueDate?: string; status: 'todo' | 'doing' | 'done'; notes?: string; timelineId?: string; contentPaths: string[]; assetPaths: string[]; createdAt: string; updatedAt: string };
 type MarketingData = { timeline: MarketingTimelineItem[]; todos: MarketingTodo[] };
@@ -57,6 +57,11 @@ type CodexRun = {
 const SOURCE_URLS: Record<string, string> = {
   requirements: 'https://lumiterra-balance-lab.vercel.app/requirements.md',
   numeric: 'https://lumiterra-balance-lab.vercel.app/numeric-core.md',
+  agent: 'https://lumiterra-balance-lab.vercel.app/agent-prototype.js?v=20260902-2',
+  lottery: 'https://lumiterra-balance-lab.vercel.app/lottery-prototype.js',
+  prototypeBaseStyle: 'https://lumiterra-balance-lab.vercel.app/styles.css?v=20260902-10',
+  agentStyle: 'https://lumiterra-balance-lab.vercel.app/agent-prototype.css?v=20260902-3',
+  lotteryStyle: 'https://lumiterra-balance-lab.vercel.app/lottery-prototype.css?v=20260901-2',
 };
 
 const NAV: Array<{ id: View; label: string }> = [
@@ -64,7 +69,7 @@ const NAV: Array<{ id: View; label: string }> = [
   { id: 'documents', label: '文档与分析' },
   { id: 'marketing', label: 'Marketing' },
   { id: 'content', label: '内容创作' },
-  { id: 'assets', label: '素材工作室' },
+  { id: 'assets', label: '视觉创作' },
   { id: 'knowledge', label: '知识库' },
 ];
 const VIEW_STORAGE_KEY = 'lumiterra-last-view';
@@ -102,7 +107,39 @@ function MarkdownView({ content, className = '', linksNewTab = false }: { conten
 }
 
 function displayName(file: WorkFile) {
-  return file.name.replace(/^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z-/, '').replaceAll('-', ' ');
+  return file.name
+    .replace(/\.[^.]+$/, '')
+    .replace(/^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z-/, '')
+    .replace(/^\d{4}-\d{2}-\d{2}-/, '')
+    .replaceAll('-', ' ')
+    .replace(/\bagent\b/gi, 'Agent')
+    .trim();
+}
+
+function stableWorkTitle(file: WorkFile) {
+  const title = displayName(file).replace(/\s*[·]?\s*(分析会话|执行记录)$/u, '').trim();
+  if (/^operations knowledge base workbench plan$/i.test(title)) return '运营知识库工作台方案';
+  if (/^(?:\d+\s+)?v2 product understanding analysis$/i.test(title)) return 'V2 产品理解分析';
+  return title;
+}
+
+function uniqueLatestByTitle(files: WorkFile[]) {
+  const latest = new Map<string, WorkFile>();
+  [...files].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).forEach((file) => {
+    const key = stableWorkTitle(file).toLowerCase();
+    if (!latest.has(key)) latest.set(key, file);
+  });
+  return [...latest.values()];
+}
+
+function currentFocusItems(content: string) {
+  const section = content.match(/## 当前工作重点\s*\n([\s\S]*?)(?=\n## |$)/)?.[1] ?? '';
+  return section.split('\n').map((line) => line.replace(/^\s*[-*]\s+/, '').trim()).filter(Boolean).slice(0, 5);
+}
+
+function contentWorkTitle(file: WorkFile, metadata?: ContentMetadata) {
+  const direction = metadata?.creativeDirection?.split(/[｜|]/)[0]?.trim();
+  return direction || contentPreview(metadata?.versions?.[0]?.content ?? file.content);
 }
 
 function compareText(before = '', after = ''): Pick<SourceChange, 'added' | 'removed' | 'addedLines' | 'removedLines'> {
@@ -167,6 +204,7 @@ export default function Home() {
     setActiveView(next);
     window.localStorage.setItem(VIEW_STORAGE_KEY, next);
     if (viewFromHash() !== next) window.history.pushState({ view: next }, '', `#${next}`);
+    window.scrollTo({ top: 0, behavior: 'instant' });
   }
 
   async function refresh(silent = false) {
@@ -188,6 +226,7 @@ export default function Home() {
       const next = isView(event.state?.view) ? event.state.view : (viewFromHash() ?? 'dashboard');
       setActiveView(next);
       window.localStorage.setItem(VIEW_STORAGE_KEY, next);
+      window.scrollTo({ top: 0, behavior: 'instant' });
     };
     window.addEventListener('popstate', restoreHistoryView);
 
@@ -230,14 +269,15 @@ function SectionTitle({ title, action }: { title: string; action?: React.ReactNo
 }
 
 function Dashboard({ workspace, setView }: { workspace: Workspace; setView: (view: View) => void }) {
-  const requests = workspace.records.filter((file) => file.path.includes('/requests/') && file.content?.includes('状态：待处理'));
-  const recent = [...workspace.records, ...workspace.outputs].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 5);
+  const requests = uniqueLatestByTitle(workspace.records.filter((file) => file.path.includes('/requests/') && file.content?.includes('状态：待处理') && !/测试|test/i.test(file.name)));
+  const recent = uniqueLatestByTitle([...workspace.outputs.filter((file) => !/连通性测试|api[\s_-]*ok|\btest\b/i.test(`${file.name}\n${file.content ?? ''}`)), ...workspace.records.filter((file) => file.path.includes('/decisions/'))]).slice(0, 5);
+  const focusItems = currentFocusItems(workspace.memory.current);
   return <div className="page">
     <SectionTitle title="工作台" action={<span className="phase">当前阶段：V2 Early Prototype</span>} />
     <div className="dashboard-bottom">
       <section className="box dashboard-active"><BoxHeader title="进行中的工作" action={<strong>{requests.length}</strong>} />{requests.length === 0 && <Empty text="目前没有等待处理的工作" />}{requests.slice(0, 6).map((file) => <button className="history-row actionable" key={file.path} onClick={() => setView(file.content?.includes('类型：分析') ? 'documents' : file.content?.includes('输出类型：assets') ? 'assets' : 'content')} type="button"><span>待处理</span><strong>{displayName(file)}</strong><small>继续 →</small></button>)}</section>
-      <section className="box dashboard-recent"><BoxHeader title="最近产出" />{recent.length === 0 && <Empty text="暂无记录" />}{recent.map((file) => <div className="history-row" key={file.path}><span>{file.path.startsWith('outputs/') ? '产出' : '记录'}</span><strong>{displayName(file)}</strong><small>{formatTime(file.updatedAt)}</small></div>)}</section>
-      <section className="box focus-strip"><BoxHeader title="当前运营重点" /><MarkdownView content={workspace.memory.current} className="compact-document" /></section>
+      <section className="box dashboard-recent"><BoxHeader title="最近产出" />{recent.length === 0 && <Empty text="暂无产出" />}{recent.map((file) => <div className="history-row" key={file.path}><span>{file.path.startsWith('outputs/') ? '产出' : '决策'}</span><strong>{file.path.startsWith('outputs/twitter/') ? contentWorkTitle(file, workspace.contentMetadata.find((item) => item.path === file.path)) : stableWorkTitle(file)}</strong><small>{formatTime(file.updatedAt)}</small></div>)}</section>
+      <section className="box focus-strip"><BoxHeader title="当前运营重点" />{focusItems.length ? <div className="focus-list">{focusItems.map((item) => <div key={item}><span>•</span><p>{item}</p></div>)}</div> : <Empty text="暂未设置当前重点" />}</section>
     </div>
   </div>;
 }
@@ -252,14 +292,18 @@ function Documents({ workspace, refresh, setNotice }: { workspace: Workspace; re
   const [selected, setSelected] = useState(`source:${workspace.sources[0]?.id ?? 'requirements'}`);
   const [syncing, setSyncing] = useState(false);
   const [changes, setChanges] = useState<SourceChange[]>([]);
-  const [sourceMode, setSourceMode] = useState<'current' | 'changes' | 'history'>('current');
+  const [sourceMode, setSourceMode] = useState<'current' | 'analysis' | 'changes' | 'history'>('current');
   const [selectedSnapshot, setSelectedSnapshot] = useState('');
   const [analysisTitle, setAnalysisTitle] = useState('V2 产品理解分析');
   const [question, setQuestion] = useState('结合当前项目记忆和产品文档，梳理已确认事实、运营判断与待确认问题，并指出对外表达需要注意的内容。');
   const [analysisOpen, setAnalysisOpen] = useState(false);
-  const analysisRequests = workspace.records.filter((file) => file.path.includes('/requests/') && file.content?.includes('类型：分析')).slice(0, 5);
-  const analysisOutputs = workspace.outputs.filter((file) => file.path.startsWith('outputs/documents/')).slice(0, 5);
+  const [analysisSourceIds, setAnalysisSourceIds] = useState<string[]>([]);
+  const [depositOpen, setDepositOpen] = useState(false);
+  const analysisRequests = uniqueLatestByTitle(workspace.records.filter((file) => file.path.includes('/requests/') && file.content?.includes('类型：分析') && file.content?.includes('状态：待处理'))).slice(0, 5);
+  const analysisOutputs = uniqueLatestByTitle(workspace.outputs.filter((file) => file.path.startsWith('outputs/documents/'))).slice(0, 8);
   const selectedSource = selected.startsWith('source:') ? workspace.sources.find((item) => `source:${item.id}` === selected) : undefined;
+  const productSources = workspace.sources.filter((item) => item.format !== 'prototype');
+  const interactionSources = workspace.sources.filter((item) => item.format === 'prototype');
   const selectedFile = [...analysisOutputs, ...analysisRequests].find((file) => file.path === selected);
   const activeChange = selectedSource ? changes.find((item) => item.id === selectedSource.id && item.changed) : undefined;
   const sourceSnapshots = selectedSource ? workspace.sourceSnapshots.filter((file) => file.sourceId === selectedSource.id) : [];
@@ -269,7 +313,7 @@ function Documents({ workspace, refresh, setNotice }: { workspace: Workspace; re
   const historyChange = selectedSource && activeSnapshot ? compareText(activeSnapshot.content, versionAfterSnapshot) : undefined;
   const documentTitle = selectedSource?.title ?? (selectedFile ? displayName(selectedFile) : '文档');
   const documentContent = selectedSource?.content ?? selectedFile?.content ?? '暂无内容';
-  const documentMeta = selectedSource ? `产品来源 · ${formatTime(selectedSource.updatedAt)}` : selectedFile ? `${selectedFile.path.includes('/requests/') ? '分析任务' : '分析结果'} · ${formatTime(selectedFile.updatedAt)}` : '';
+  const documentMeta = selectedSource ? `${selectedSource.format === 'prototype' ? '交互原型' : '产品文档'} · ${formatTime(selectedSource.updatedAt)}` : selectedFile ? `${selectedFile.path.includes('/requests/') ? '分析任务' : '分析结果'} · ${formatTime(selectedFile.updatedAt)}` : '';
 
   async function sync() {
     setSyncing(true);
@@ -280,34 +324,46 @@ function Documents({ workspace, refresh, setNotice }: { workspace: Workspace; re
       const count = result.changes.filter((item) => item.changed).length;
       const firstChanged = result.changes.find((item) => item.changed);
       if (firstChanged) { setSelected(`source:${firstChanged.id}`); setSourceMode('changes'); }
-      setNotice({ tone: 'success', text: count ? `已保存 ${count} 份文档更新` : '产品文档没有变化' });
+      setNotice({ tone: 'success', text: count ? `已保存 ${count} 类文档更新` : '四类文档均无变化' });
     } catch (error) { setNotice({ tone: 'error', text: error instanceof Error ? error.message : '同步失败' }); }
     finally { setSyncing(false); }
   }
 
-  function prepareChangeAnalysis(change: SourceChange | Pick<SourceChange, 'title' | 'addedLines' | 'removedLines'>) {
-    setAnalysisTitle(`${change.title}更新影响分析`);
+  function prepareChangeAnalysis(change: Pick<SourceChange, 'title' | 'addedLines' | 'removedLines'> & { id?: string }) {
+    setAnalysisSourceIds(change.id ? [change.id] : []);
+    setAnalysisTitle(`${change.title} · 更新分析`);
     setQuestion(`只分析下面这次文档变化，并说明：1. 产品发生了什么变化；2. 对运营叙事和已有内容的影响；3. 哪些内容仍需团队确认；4. 哪些公开表达需要调整。\n\n新增内容：\n${change.addedLines.map((line) => `+ ${line}`).join('\n') || '无'}\n\n删除内容：\n${change.removedLines.map((line) => `- ${line}`).join('\n') || '无'}`);
     setAnalysisOpen(true);
   }
 
+  function prepareSourceAnalysis(source: Source) {
+    setAnalysisSourceIds([source.id]);
+    setAnalysisTitle(`${source.title} · 分类分析`);
+    setQuestion(`只分析“${source.title}”这一分类的最新完整版本。请分别说明：1. 已确认的界面、流程与规则；2. 相比产品需求和数值文档可能产生的运营影响；3. 用户体验或表达上的风险；4. 仍需团队确认的问题。不要把其他分类的内容混为本分类事实。`);
+    setAnalysisOpen(true);
+  }
+
   return <div className="page">
-    <SectionTitle title="文档与分析" action={<div className="title-actions"><button onClick={sync} disabled={syncing} type="button">{syncing ? '正在同步…' : '检查文档更新'}</button><button className="primary" onClick={() => setAnalysisOpen(true)} type="button">新建分析</button></div>} />
+    <SectionTitle title="文档与分析" action={<div className="title-actions"><button onClick={sync} disabled={syncing} type="button">{syncing ? '正在同步并检查…' : '同步并检查 4 类文档'}</button><button className="primary" onClick={() => { setAnalysisSourceIds([]); setAnalysisOpen(true); }} type="button">新建分析</button></div>} />
     {changes.length > 0 && <div className="sync-results">{changes.map((item) => <div className={item.changed ? 'changed' : ''} key={item.title}><span><b>{item.title}</b>{item.changed ? `新增 ${item.added} · 删除 ${item.removed}` : '无变化'}</span>{item.changed && <div><button onClick={() => { setSelected(`source:${item.id}`); setSourceMode('changes'); }} type="button">查看变更</button><button onClick={() => prepareChangeAnalysis(item)} type="button">分析更新</button></div>}</div>)}</div>}
 
     <div className="document-workspace reader-first">
-      <aside className="box document-nav"><BoxHeader title="文档" />
-        <p>产品来源</p>{workspace.sources.map((item) => <button className={selected === `source:${item.id}` ? 'active' : ''} onClick={() => { setSelected(`source:${item.id}`); setSourceMode('current'); }} key={item.id} type="button"><strong>{item.title}</strong><small>{item.content ? formatTime(item.updatedAt) : '未同步'}</small></button>)}
-        <p>分析结果</p>{analysisOutputs.length === 0 && <small className="nav-empty">暂无结果</small>}{analysisOutputs.map((file) => <button className={selected === file.path ? 'active' : ''} onClick={() => setSelected(file.path)} key={file.path} type="button"><strong>{displayName(file)}</strong><small>{formatTime(file.updatedAt)}</small></button>)}
-        <p>分析任务</p>{analysisRequests.length === 0 && <small className="nav-empty">暂无任务</small>}{analysisRequests.map((file) => <button className={selected === file.path ? 'active' : ''} onClick={() => setSelected(file.path)} key={file.path} type="button"><strong>{displayName(file)}</strong><small>{file.content?.includes('状态：已完成') ? '已完成' : file.content?.includes('状态：已取消') ? '已取消' : '待处理'}</small></button>)}
+      <aside className="box document-nav"><BoxHeader title="文档分类" />
+        <p>产品文档</p>{productSources.map((item) => <button className={selected === `source:${item.id}` ? 'active' : ''} onClick={() => { setSelected(`source:${item.id}`); setSourceMode('current'); }} key={item.id} type="button"><strong>{item.title}</strong><small>{item.content ? formatTime(item.updatedAt) : '未同步'}</small></button>)}
+        <p>交互原型</p>{interactionSources.map((item) => <button className={selected === `source:${item.id}` ? 'active' : ''} onClick={() => { setSelected(`source:${item.id}`); setSourceMode('current'); }} key={item.id} type="button"><strong>{item.title}</strong><small>{item.content ? formatTime(item.updatedAt) : '未同步'}</small></button>)}
+        <p>最近分析</p>{analysisOutputs.length === 0 && <small className="nav-empty">暂无结果</small>}{analysisOutputs.map((file) => <button className={selected === file.path ? 'active' : ''} onClick={() => setSelected(file.path)} key={file.path} type="button"><strong>{stableWorkTitle(file)}</strong><small>最新结果 · {formatTime(file.updatedAt)}</small></button>)}
+        <p>待处理任务</p>{analysisRequests.length === 0 && <small className="nav-empty">没有待处理任务</small>}{analysisRequests.map((file) => <button className={selected === file.path ? 'active' : ''} onClick={() => setSelected(file.path)} key={file.path} type="button"><strong>{stableWorkTitle(file)}</strong><small>待处理</small></button>)}
       </aside>
-      <section className="box document-view"><div className="document-view-head"><div><h2>{documentTitle}</h2><span>{documentMeta}</span></div>{selectedSource && <div className="document-tabs"><button className={sourceMode === 'current' ? 'active' : ''} onClick={() => setSourceMode('current')} type="button">当前文档</button><button className={sourceMode === 'changes' ? 'active' : ''} onClick={() => setSourceMode('changes')} type="button">本次变更</button><button className={sourceMode === 'history' ? 'active' : ''} onClick={() => setSourceMode('history')} type="button">历史版本</button></div>}</div>
-        {(!selectedSource || sourceMode === 'current') && <MarkdownView content={documentContent} />}
+      <section className="box document-view"><div className="document-view-head"><div><h2>{documentTitle}</h2><span>{documentMeta}</span></div>{selectedSource ? <div className="document-source-actions"><button className="analyze-source" onClick={() => prepareSourceAnalysis(selectedSource)} type="button">分析此分类</button><div className="document-tabs"><button className={sourceMode === 'current' ? 'active' : ''} onClick={() => setSourceMode('current')} type="button">{selectedSource.format === 'prototype' ? '交互预览' : '当前版本'}</button>{selectedSource.format === 'prototype' && <button className={sourceMode === 'analysis' ? 'active' : ''} onClick={() => setSourceMode('analysis')} type="button">分析说明</button>}<button className={sourceMode === 'changes' ? 'active' : ''} onClick={() => setSourceMode('changes')} type="button">本次变更</button><button className={sourceMode === 'history' ? 'active' : ''} onClick={() => setSourceMode('history')} type="button">历史版本</button></div></div> : selectedFile?.path.startsWith('outputs/documents/') ? <button className="link-button" onClick={() => setDepositOpen(true)} type="button">沉淀到知识库</button> : null}</div>
+        {(!selectedSource || (sourceMode === 'current' && selectedSource.format !== 'prototype')) && <MarkdownView content={documentContent} />}
+        {selectedSource?.format === 'prototype' && sourceMode === 'current' && <div className="prototype-reader"><div><span>本地轻量加载；原始代码与官方样式随四类文档一起同步。</span>{selectedSource.externalUrl && <a href={selectedSource.externalUrl} target="_blank" rel="noreferrer">查看官方原稿 ↗</a>}</div>{selectedSource.viewUrl ? <iframe src={selectedSource.viewUrl} title={`${selectedSource.title}本地交互原型`} /> : <Empty text="交互原型地址缺失" />}</div>}
+        {selectedSource?.format === 'prototype' && sourceMode === 'analysis' && <MarkdownView content={selectedSource.analysisOverview ?? '尚未生成分析说明'} />}
         {selectedSource && sourceMode === 'changes' && (activeChange ? <SourceDiffView change={activeChange} analyze={() => prepareChangeAnalysis(activeChange)} /> : <Empty text="本次打开工作台后还没有检测到新的变化。可以在历史版本中比较已保存的版本。" />)}
-        {selectedSource && sourceMode === 'history' && <div className="history-compare"><aside><h3>更新记录</h3>{sourceSnapshots.length === 0 && <Empty text="暂无历史版本" />}{sourceSnapshots.map((file) => <button className={activeSnapshot?.path === file.path ? 'active' : ''} onClick={() => setSelectedSnapshot(file.path)} key={file.path} type="button"><strong>{formatTime(file.updatedAt)}</strong><small>查看这次更新</small></button>)}</aside><div>{historyChange && activeSnapshot ? <SourceDiffView change={{ id: selectedSource.id, title: `${selectedSource.title} · ${formatTime(activeSnapshot.updatedAt)} 更新`, changed: Boolean(historyChange.added || historyChange.removed), ...historyChange }} analyze={() => prepareChangeAnalysis({ title: selectedSource.title, ...historyChange })} /> : <Empty text="选择一条更新记录查看差异" />}</div></div>}
+        {selectedSource && sourceMode === 'history' && <div className="history-compare"><aside><h3>更新记录</h3>{sourceSnapshots.length === 0 && <Empty text="暂无历史版本" />}{sourceSnapshots.map((file) => <button className={activeSnapshot?.path === file.path ? 'active' : ''} onClick={() => setSelectedSnapshot(file.path)} key={file.path} type="button"><strong>{formatTime(file.updatedAt)}</strong><small>查看这次更新</small></button>)}</aside><div>{historyChange && activeSnapshot ? <SourceDiffView change={{ id: selectedSource.id, title: `${selectedSource.title} · ${formatTime(activeSnapshot.updatedAt)} 更新`, changed: Boolean(historyChange.added || historyChange.removed), ...historyChange }} analyze={() => prepareChangeAnalysis({ id: selectedSource.id, title: selectedSource.title, ...historyChange })} /> : <Empty text="选择一条更新记录查看差异" />}</div></div>}
       </section>
     </div>
-    {analysisOpen && <AiWorkspaceModal mode="analysis" workspace={workspace} initialTitle={analysisTitle} initialPrompt={question} onClose={() => setAnalysisOpen(false)} onSaved={(path) => setSelected(path)} refresh={refresh} setNotice={setNotice} />}
+    {analysisOpen && <AiWorkspaceModal mode="analysis" workspace={workspace} initialTitle={analysisTitle} initialPrompt={question} initialSourceIds={analysisSourceIds} onClose={() => setAnalysisOpen(false)} onSaved={(path) => setSelected(path)} refresh={refresh} setNotice={setNotice} />}
+    {depositOpen && selectedFile && <KnowledgeDepositModal workspace={workspace} input={{ origin: 'analysis', title: `${documentTitle} · 核心结论`, content: stripTitle(selectedFile.content ?? ''), targetPath: selectedFile.path }} onClose={() => setDepositOpen(false)} refresh={refresh} setNotice={setNotice} />}
   </div>;
 }
 
@@ -408,7 +464,99 @@ function KnowledgeReferencePicker({ workspace, selected, onChange, query = '', l
   </div>;
 }
 
-function AiWorkspaceModal({ mode, workspace, initialTitle, initialPrompt = '', initialKnowledgePaths = [], onClose, onSaved, refresh, setNotice }: { mode: 'knowledge' | 'analysis'; workspace: Workspace; initialTitle: string; initialPrompt?: string; initialKnowledgePaths?: string[]; onClose: () => void; onSaved?: (path: string) => void; refresh: (silent?: boolean) => Promise<void>; setNotice: (notice: Notice) => void }) {
+function TopicCreateModal({ onClose, onCreated, refresh, setNotice }: { onClose: () => void; onCreated: (path: string) => void; refresh: (silent?: boolean) => Promise<void>; setNotice: (notice: Notice) => void }) {
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [tags, setTags] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [errorText, setErrorText] = useState('');
+
+  async function createTopic() {
+    if (!title.trim() || saving) return;
+    setSaving(true); setErrorText('');
+    try {
+      const content = description.trim() || `持续归集“${title.trim()}”相关的资料、结论和工作关联。`;
+      const result = await api<{ path: string }>({ action: 'createKnowledgeItem', type: 'topic', title, content, reason: '由用户创建，用于组织相关资料与结论。', tags: tags.split(/[，,\s]+/).filter(Boolean) });
+      await refresh(true); onCreated(result.path); setNotice({ tone: 'success', text: '主题已创建并选中' }); onClose();
+    } catch (error) { setErrorText(error instanceof Error ? error.message : '创建主题失败'); }
+    finally { setSaving(false); }
+  }
+
+  return <div className="topic-create-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) onClose(); }}><section className="topic-create-modal" role="dialog" aria-modal="true" aria-label="新建主题">
+    <header><div><span>知识库</span><strong>新建主题</strong><p>主题是资料和结论的归集入口，不是固定的技术分类。</p></div><button onClick={onClose} disabled={saving} type="button">×</button></header>
+    <div><label>主题名称<input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="例如：Lumiterra V2 冷启动" autoFocus /></label><label>一句话简介（可选）<textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="这个主题主要要回答什么问题？" /></label><label>标签（可选）<input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="例如：Marketing 冷启动 获客" /></label>{errorText && <p className="ai-error">{errorText}</p>}</div>
+    <footer><button onClick={onClose} disabled={saving} type="button">取消</button><button className="primary" onClick={createTopic} disabled={!title.trim() || saving} type="button">{saving ? '正在创建…' : '创建主题'}</button></footer>
+  </section></div>;
+}
+
+type KnowledgeDepositInput = { origin: 'analysis' | 'content' | 'asset' | 'marketing'; title: string; content: string; targetPath: string; topicPath?: string };
+
+function KnowledgeDepositModal({ workspace, input, onClose, refresh, setNotice }: { workspace: Workspace; input: KnowledgeDepositInput; onClose: () => void; refresh: (silent?: boolean) => Promise<void>; setNotice: (notice: Notice) => void }) {
+  const topics = workspace.knowledgeMetadata.filter((item) => item.type === 'topic' && item.status !== 'archived');
+  const editable = workspace.knowledgeMetadata.filter((item) => (item.type === 'insight' || item.type === 'topic') && item.status !== 'archived');
+  const [mode, setMode] = useState<'create' | 'update' | 'link'>('create');
+  const [title, setTitle] = useState(input.title);
+  const [content, setContent] = useState(input.content);
+  const [tags, setTags] = useState('');
+  const [topicPath, setTopicPath] = useState(input.topicPath ?? '');
+  const [existingPath, setExistingPath] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [errorText, setErrorText] = useState('');
+  const [topicCreateOpen, setTopicCreateOpen] = useState(false);
+  const originLabel = { analysis: '分析结果', content: '内容定稿', asset: '已采用素材', marketing: 'Marketing 复盘' }[input.origin];
+  const normalizedTitle = title.toLowerCase().replace(/[^a-z0-9\u4e00-\u9fff]/g, '');
+  const possibleMatches = editable.filter((item) => {
+    const name = item.title.toLowerCase().replace(/[^a-z0-9\u4e00-\u9fff]/g, '');
+    return normalizedTitle.length >= 4 && (name.includes(normalizedTitle.slice(0, 8)) || normalizedTitle.includes(name.slice(0, 8)));
+  }).slice(0, 3);
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = previousOverflow; };
+  }, []);
+
+  async function saveDeposit() {
+    if (saving) return;
+    setSaving(true); setErrorText('');
+    try {
+      const topic = topics.find((item) => item.path === topicPath);
+      if (mode === 'link') {
+        if (!topicPath) throw new Error('请选择要关联的主题');
+        await api({ action: 'recordKnowledgeUsage', knowledgePaths: [topicPath], targetPath: input.targetPath });
+        setNotice({ tone: 'success', text: '已关联到主题，没有新增知识条目' });
+      } else if (mode === 'update') {
+        if (!existingPath) throw new Error('请选择要更新的现有结论或主题');
+        const existing = editable.find((item) => item.path === existingPath);
+        await api({ action: 'updateKnowledgeItem', path: existingPath, title: title || existing?.title, content, reason: `由${originLabel}人工确认更新。`, tags: tags.split(/[，,\s]+/).filter(Boolean), topicIds: topic ? [topic.id] : existing?.topicIds });
+        if (input.targetPath) await api({ action: 'recordKnowledgeUsage', knowledgePaths: [existingPath], targetPath: input.targetPath });
+        setNotice({ tone: 'success', text: '现有知识已更新并保留旧版本' });
+      } else {
+        const result = await api<{ path: string }>({ action: 'createKnowledgeItem', type: 'insight', title, content, reason: `由${originLabel}人工确认沉淀。`, tags: tags.split(/[，,\s]+/).filter(Boolean), topicIds: topic ? [topic.id] : [] });
+        if (input.targetPath) await api({ action: 'recordKnowledgeUsage', knowledgePaths: [result.path], targetPath: input.targetPath });
+        setNotice({ tone: 'success', text: '结论已加入知识库' });
+      }
+      await refresh(true); onClose();
+    } catch (error) { setErrorText(error instanceof Error ? error.message : '保存失败'); }
+    finally { setSaving(false); }
+  }
+
+  return <div className="knowledge-picker-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) onClose(); }}><section className="knowledge-deposit-panel" role="dialog" aria-modal="true" aria-label="沉淀到知识库">
+    <header><div><span>{originLabel}</span><strong>沉淀到知识库</strong><p>只保存值得复用的结论；不会自动复制完整产出。</p></div><button onClick={onClose} disabled={saving} type="button">×</button></header>
+    <nav>{([['create', '新增结论'], ['update', '更新现有'], ['link', '仅关联主题']] as const).map(([value, label]) => <button className={mode === value ? 'active' : ''} onClick={() => setMode(value)} type="button" key={value}>{label}</button>)}</nav>
+    <div className="knowledge-deposit-body">
+      {mode === 'update' && <label>更新哪一条<select value={existingPath} onChange={(event) => { const path = event.target.value; setExistingPath(path); const item = editable.find((entry) => entry.path === path); const file = workspace.knowledgeFiles.find((entry) => entry.path === path); if (item && file) { setTitle(item.title); setContent(stripTitle(file.content ?? '')); setTags(item.tags.join(' ')); } }}><option value="">选择现有结论或主题</option>{editable.map((item) => <option value={item.path} key={item.id}>{knowledgeTypeLabel(item.type)} · {item.title}</option>)}</select></label>}
+      {mode !== 'link' && <><div className="deposit-suggestion"><span>待确认内容</span><p>下面是从当前产出带入的草稿，可删改后再保存。</p></div><label>标题<input value={title} onChange={(event) => setTitle(event.target.value)} /></label><label>可复用结论<textarea value={content} onChange={(event) => setContent(event.target.value)} /></label><label>标签（可选）<input value={tags} onChange={(event) => setTags(event.target.value)} placeholder="例如：内容表达 风险与边界" /></label></>}
+      <label>归入主题<div className="deposit-topic-row"><select value={topicPath} onChange={(event) => setTopicPath(event.target.value)}><option value="">暂不归入主题（保存后可再整理）</option>{topics.map((item) => <option value={item.path} key={item.id}>{item.title}</option>)}</select><button onClick={() => setTopicCreateOpen(true)} type="button">＋ 新建主题</button></div></label>
+      {mode === 'create' && possibleMatches.length > 0 && <div className="deposit-duplicates"><strong>可能已有相近内容</strong>{possibleMatches.map((item) => <button onClick={() => { setMode('update'); setExistingPath(item.path); }} type="button" key={item.id}>{item.title} · V{item.version}</button>)}</div>}
+      {mode === 'link' && <p className="deposit-link-note">只建立“主题 ↔ 当前产出”的关系，不会新增结论，也不会复制正文。</p>}
+      {errorText && <p className="ai-error">{errorText}</p>}
+    </div>
+    <footer><button onClick={onClose} disabled={saving} type="button">取消</button><button className="primary" onClick={saveDeposit} disabled={saving || (mode !== 'link' && (!title.trim() || !content.trim()))} type="button">{saving ? '正在保存…' : mode === 'link' ? '确认关联' : mode === 'update' ? '确认更新' : '确认加入'}</button></footer>
+  </section>{topicCreateOpen && <TopicCreateModal onClose={() => setTopicCreateOpen(false)} onCreated={setTopicPath} refresh={refresh} setNotice={setNotice} />}</div>;
+}
+
+function AiWorkspaceModal({ mode, workspace, initialTitle, initialPrompt = '', initialKnowledgePaths = [], initialSourceIds = [], onClose, onSaved, refresh, setNotice }: { mode: 'knowledge' | 'analysis'; workspace: Workspace; initialTitle: string; initialPrompt?: string; initialKnowledgePaths?: string[]; initialSourceIds?: string[]; onClose: () => void; onSaved?: (path: string) => void; refresh: (silent?: boolean) => Promise<void>; setNotice: (notice: Notice) => void }) {
   const latestSession = workspace.assistantSessions?.find((item) => item.kind === mode && item.status === 'active');
   const [tab, setTab] = useState<'chat' | 'direct'>('chat');
   const [sessionId, setSessionId] = useState('');
@@ -418,6 +566,7 @@ function AiWorkspaceModal({ mode, workspace, initialTitle, initialPrompt = '', i
   const [messages, setMessages] = useState<AssistantMessage[]>([]);
   const [knowledgePaths, setKnowledgePaths] = useState(initialKnowledgePaths);
   const [includeSources, setIncludeSources] = useState(mode === 'analysis');
+  const [sourceIds, setSourceIds] = useState(initialSourceIds);
   const [apiResponseId, setApiResponseId] = useState('');
   const [codexThreadId, setCodexThreadId] = useState('');
   const [input, setInput] = useState(initialPrompt);
@@ -447,13 +596,14 @@ function AiWorkspaceModal({ mode, workspace, initialTitle, initialPrompt = '', i
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      if (!initialKnowledgePaths.length) {
+      if (!initialKnowledgePaths.length && !initialSourceIds.length) {
         try {
-          const saved = JSON.parse(sessionStorage.getItem(draftStorageKey) ?? '{}') as { tab?: 'chat' | 'direct'; title?: string; provider?: ExecutionMode; input?: string; includeSources?: boolean; knowledgePaths?: string[]; directType?: KnowledgeItemType; directTitle?: string; directUrl?: string; directContent?: string; directTags?: string };
+          const saved = JSON.parse(sessionStorage.getItem(draftStorageKey) ?? '{}') as { tab?: 'chat' | 'direct'; title?: string; provider?: ExecutionMode; input?: string; includeSources?: boolean; sourceIds?: string[]; knowledgePaths?: string[]; directType?: KnowledgeItemType; directTitle?: string; directUrl?: string; directContent?: string; directTags?: string };
           if (saved.tab) setTab(saved.tab);
           if (saved.title) setTitle(saved.title);
           if (saved.provider) setProvider(saved.provider);
           if (typeof saved.includeSources === 'boolean') setIncludeSources(saved.includeSources);
+          if (Array.isArray(saved.sourceIds)) setSourceIds(saved.sourceIds);
           if (Array.isArray(saved.knowledgePaths)) setKnowledgePaths(saved.knowledgePaths);
           if (saved.input) setInput(saved.input);
           if (saved.directType) setDirectType(saved.directType);
@@ -466,15 +616,15 @@ function AiWorkspaceModal({ mode, workspace, initialTitle, initialPrompt = '', i
       setDraftReady(true);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [draftStorageKey, initialKnowledgePaths.length]);
+  }, [draftStorageKey, initialKnowledgePaths.length, initialSourceIds.length]);
 
   useEffect(() => {
     if (!draftReady) return;
-    sessionStorage.setItem(draftStorageKey, JSON.stringify({ tab, title, provider, input, includeSources, knowledgePaths, directType, directTitle, directUrl, directContent, directTags }));
-  }, [draftReady, draftStorageKey, tab, title, provider, input, includeSources, knowledgePaths, directType, directTitle, directUrl, directContent, directTags]);
+    sessionStorage.setItem(draftStorageKey, JSON.stringify({ tab, title, provider, input, includeSources, sourceIds, knowledgePaths, directType, directTitle, directUrl, directContent, directTags }));
+  }, [draftReady, draftStorageKey, tab, title, provider, input, includeSources, sourceIds, knowledgePaths, directType, directTitle, directUrl, directContent, directTags]);
 
   async function persist(nextMessages: AssistantMessage[], extra: Partial<AssistantSession> = {}) {
-    const result = await api<AssistantSession>({ action: 'saveAssistantSession', id: sessionId || undefined, kind: mode, title, provider, lastProvider: extra.lastProvider ?? lastProvider, status: extra.status ?? 'active', messages: nextMessages, knowledgePaths, includeSources, apiResponseId: (extra.apiResponseId ?? apiResponseId) || undefined, codexThreadId: (extra.codexThreadId ?? codexThreadId) || undefined, outputPath: extra.outputPath });
+    const result = await api<AssistantSession>({ action: 'saveAssistantSession', id: sessionId || undefined, kind: mode, title, provider, lastProvider: extra.lastProvider ?? lastProvider, status: extra.status ?? 'active', messages: nextMessages, knowledgePaths, includeSources, sourceIds, apiResponseId: (extra.apiResponseId ?? apiResponseId) || undefined, codexThreadId: (extra.codexThreadId ?? codexThreadId) || undefined, outputPath: extra.outputPath });
     if (!sessionId) setSessionId(result.id);
     return result;
   }
@@ -482,12 +632,12 @@ function AiWorkspaceModal({ mode, workspace, initialTitle, initialPrompt = '', i
   function startNew() {
     if ((messages.length || input.trim()) && !window.confirm('开始新对话会清空当前未保存的对话输入，是否继续？')) return;
     sessionStorage.removeItem(draftStorageKey);
-    setSessionId(''); setTitle(initialTitle); setProvider('codex'); setLastProvider(undefined); setMessages([]); setKnowledgePaths(initialKnowledgePaths); setIncludeSources(mode === 'analysis'); setApiResponseId(''); setCodexThreadId(''); setInput(initialPrompt); setCodexRun(null); setErrorText(''); setTab('chat');
+    setSessionId(''); setTitle(initialTitle); setProvider('codex'); setLastProvider(undefined); setMessages([]); setKnowledgePaths(initialKnowledgePaths); setIncludeSources(mode === 'analysis'); setSourceIds(initialSourceIds); setApiResponseId(''); setCodexThreadId(''); setInput(initialPrompt); setCodexRun(null); setErrorText(''); setTab('chat');
   }
 
   function resumeLatest() {
     if (!latestSession) return;
-    setSessionId(latestSession.id); setTitle(latestSession.title); setProvider(latestSession.provider); setLastProvider(latestSession.lastProvider); setMessages(latestSession.messages); setKnowledgePaths(latestSession.knowledgePaths); setIncludeSources(latestSession.includeSources); setApiResponseId(latestSession.apiResponseId ?? ''); setCodexThreadId(latestSession.codexThreadId ?? ''); setInput(''); setTab('chat'); setErrorText('');
+    setSessionId(latestSession.id); setTitle(latestSession.title); setProvider(latestSession.provider); setLastProvider(latestSession.lastProvider); setMessages(latestSession.messages); setKnowledgePaths(latestSession.knowledgePaths); setIncludeSources(latestSession.includeSources); setSourceIds(latestSession.sourceIds ?? []); setApiResponseId(latestSession.apiResponseId ?? ''); setCodexThreadId(latestSession.codexThreadId ?? ''); setInput(''); setTab('chat'); setErrorText('');
   }
 
   async function addInsight(content: string, insightTitle = `${title} · 核心结论`) {
@@ -515,14 +665,14 @@ function AiWorkspaceModal({ mode, workspace, initialTitle, initialPrompt = '', i
       let nextCodexId = codexThreadId;
       if (provider === 'api') {
         const controller = new AbortController(); abortRef.current = controller;
-        const response = await fetch('/api/assistant', { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal, body: JSON.stringify({ kind: mode, prompt, messages, knowledgePaths, includeSources, previousResponseId: lastProvider === 'api' ? apiResponseId : undefined }) });
+        const response = await fetch('/api/assistant', { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal, body: JSON.stringify({ kind: mode, prompt, messages, knowledgePaths, includeSources, sourceIds, previousResponseId: lastProvider === 'api' ? apiResponseId : undefined }) });
         const result = await response.json() as { content?: string; responseId?: string; error?: string };
         if (!response.ok || !result.content) throw new Error(result.error || 'API 对话未完成');
         content = result.content; nextApiId = result.responseId ?? '';
       } else {
         const transcript = lastProvider === 'codex' ? '' : messages.slice(-12).map((item) => `${item.role === 'user' ? '用户' : '助手'}：${item.content}`).join('\n\n');
-        let sourceRemaining = 60_000;
-        const sourceContext = includeSources ? workspace.sources.map((source) => { const part = source.content.slice(0, sourceRemaining); sourceRemaining -= part.length; return part ? `【产品事实来源 · ${source.title}】\n${part}` : ''; }).filter(Boolean).join('\n\n') : '';
+        let sourceRemaining = sourceIds.length === 1 ? 250_000 : 120_000;
+        const sourceContext = includeSources ? workspace.sources.filter((source) => !sourceIds.length || sourceIds.includes(source.id)).map((source) => { const analysisSource = source.format === 'prototype' ? source.analysisContent ?? source.content : source.content; const part = analysisSource.slice(0, sourceRemaining); sourceRemaining -= part.length; return part ? `【产品事实来源 · ${source.title}】\n${part}` : ''; }).filter(Boolean).join('\n\n') : '';
         const directPrompt = [
           mode === 'analysis' ? '你是 Lumiterra V2 运营研究与产品分析助手。' : '你是 Lumiterra V2 运营知识协作助手。',
           '这是网页端多轮对话。只返回本轮中文回复，不创建、修改或读取任何本地文件，也不调用工具。',
@@ -555,7 +705,8 @@ function AiWorkspaceModal({ mode, workspace, initialTitle, initialPrompt = '', i
     if (!content) return;
     try {
       const output = await api<{ path: string }>({ action: 'saveOutput', category: 'documents', title, content });
-      await api({ action: 'createRecord', title: `${title} · 分析会话`, content: [`- 分析产出：${output.path}`, `- 执行方式：${lastProvider === 'api' ? 'OpenAI API' : 'Codex'}`, `- 引用知识：${knowledgePaths.length ? knowledgePaths.join('、') : '无'}`, '', '## 重要判断', '', '- 最终分析正文已保存；对话过程保留在工作台会话记录中。', '', '## 剩余问题', '', '- 见分析正文中的待确认事项。'].join('\n') });
+      const sourceLabels = workspace.sources.filter((source) => !sourceIds.length || sourceIds.includes(source.id)).map((source) => source.title);
+      await api({ action: 'createRecord', title: `${title} · 分析会话`, content: [`- 分析产出：${output.path}`, `- 执行方式：${lastProvider === 'api' ? 'OpenAI API' : 'Codex'}`, `- 文档分类：${includeSources ? sourceLabels.join('、') || '无' : '未引用'}`, `- 引用知识：${knowledgePaths.length ? knowledgePaths.join('、') : '无'}`, '', '## 重要判断', '', '- 最终分析正文已保存；对话过程保留在工作台会话记录中。', '', '## 剩余问题', '', '- 见分析正文中的待确认事项。'].join('\n') });
       if (knowledgePaths.length) await api({ action: 'recordKnowledgeUsage', knowledgePaths, targetPath: output.path });
       await persist(messages, { status: 'completed', outputPath: output.path });
       sessionStorage.removeItem(draftStorageKey);
@@ -583,8 +734,8 @@ function AiWorkspaceModal({ mode, workspace, initialTitle, initialPrompt = '', i
     <header className="ai-modal-header"><div><span>{mode === 'analysis' ? '文档与分析' : '知识库'}</span>{tab === 'direct' ? <strong className="ai-direct-title">添加知识文档</strong> : <input value={title} onChange={(event) => setTitle(event.target.value)} aria-label="会话标题" />}</div><div>{tab === 'chat' && latestSession && !sessionId && <button onClick={resumeLatest} type="button">继续上次</button>}{tab === 'chat' && <button onClick={startNew} type="button">新对话</button>}<button onClick={onClose} disabled={working} type="button">关闭</button></div></header>
     {mode === 'knowledge' && <nav className="ai-modal-tabs"><button className={tab === 'chat' ? 'active' : ''} onClick={() => setTab('chat')} type="button">讨论与整理</button><button className={tab === 'direct' ? 'active' : ''} onClick={() => setTab('direct')} type="button">直接添加文档</button></nav>}
     {tab === 'direct' ? <div className="knowledge-direct-form"><div className="direct-type-row">{([['source', '源头资料'], ['insight', '结论'], ['topic', '主题'], ['discussion', '讨论记录']] as const).map(([value, label]) => <button className={directType === value ? 'active' : ''} onClick={() => setDirectType(value)} type="button" key={value}>{label}</button>)}</div><div className="direct-field-grid"><label>标题（可选）<input value={directTitle} onChange={(event) => setDirectTitle(event.target.value)} placeholder="不填时自动取正文首行" /></label><label>标签（可选）<input value={directTags} onChange={(event) => setDirectTags(event.target.value)} placeholder="用逗号或空格分隔" /></label></div>{directType === 'source' && <label>原始链接（可选）<input value={directUrl} onChange={(event) => setDirectUrl(event.target.value)} placeholder="https://…" /></label>}<label>正文<textarea value={directContent} onChange={(event) => setDirectContent(event.target.value)} placeholder={directType === 'source' ? '补充摘要、摘录或为什么值得保留…' : '输入需要长期保留的内容…'} /></label><KnowledgeReferencePicker workspace={workspace} selected={knowledgePaths} onChange={setKnowledgePaths} query={`${directTitle}\n${directContent}`} label="归入主题" emptyLabel="选择主题" types={['topic']} /><div className="ai-direct-actions"><span>未保存内容会在本次浏览器会话中自动保留</span><button className="primary" onClick={saveDirect} disabled={!canSaveDirect} type="button">加入知识库</button></div>{errorText && <p className="ai-error">{errorText}</p>}</div> : <>
-      <div className="ai-context-bar"><div className="ai-toolbar-group"><span>执行</span><div className="execution-switch"><button className={provider === 'codex' ? 'active' : ''} onClick={() => setProvider('codex')} type="button">Codex</button><button className={provider === 'api' ? 'active' : ''} onClick={() => setProvider('api')} disabled={apiConfigured === false} title={apiConfigured === false ? '尚未配置 OpenAI API' : '使用 OpenAI API'} type="button">OpenAI API</button></div></div><div className="ai-toolbar-group context"><span>本次参考</span>{mode === 'analysis' && <label className="source-toggle"><input type="checkbox" checked={includeSources} onChange={(event) => setIncludeSources(event.target.checked)} />产品文档</label>}<KnowledgeReferencePicker workspace={workspace} selected={knowledgePaths} onChange={setKnowledgePaths} query={`${title}\n${input}\n${messages.map((item) => item.content).join('\n')}`} label="知识库" /></div></div>
-      <div className={`ai-chat-stage ${messages.length === 0 ? 'empty' : ''}`}><div className="ai-conversation">{messages.length === 0 ? <div className="ai-conversation-empty"><strong>{mode === 'analysis' ? '把分析变成一段可以继续追问的对话' : '搜集资料、脑暴或讨论判断，都可以从这里开始'}</strong><p>{mode === 'analysis' ? '默认参考最新产品文档；也可选择知识库资料。满意后再保存分析结果。' : '对话不会自动进入知识库。只有点击“加入知识库”时才会沉淀。'}</p></div> : messages.map((message) => <article className={`ai-message ${message.role}`} key={message.id}><span>{message.role === 'user' ? '你' : provider === 'api' ? 'AI' : 'Codex'}</span>{message.role === 'assistant' ? <MarkdownView content={message.content} /> : <p>{message.content}</p>}{message.role === 'assistant' && <button onClick={() => addInsight(message.content, `${title} · 结论`)} type="button">将这条加入知识库</button>}</article>)}{working && <div className="ai-thinking"><span className="run-dot" />正在整理回复…</div>}</div>
+      <div className="ai-context-bar"><div className="ai-toolbar-group"><span>执行</span><div className="execution-switch"><button className={provider === 'codex' ? 'active' : ''} onClick={() => setProvider('codex')} type="button">Codex</button><button className={provider === 'api' ? 'active' : ''} onClick={() => setProvider('api')} disabled={apiConfigured === false} title={apiConfigured === false ? '尚未配置 OpenAI API' : '使用 OpenAI API'} type="button">OpenAI API</button></div></div><div className="ai-toolbar-group context"><span>本次参考</span>{mode === 'analysis' && <label className="source-toggle"><input type="checkbox" checked={includeSources} onChange={(event) => setIncludeSources(event.target.checked)} />{sourceIds.length === 1 ? workspace.sources.find((source) => source.id === sourceIds[0])?.title ?? '当前分类' : `全部 ${workspace.sources.length} 类文档`}</label>}<KnowledgeReferencePicker workspace={workspace} selected={knowledgePaths} onChange={setKnowledgePaths} query={`${title}\n${input}\n${messages.map((item) => item.content).join('\n')}`} label="知识库" /></div></div>
+      <div className={`ai-chat-stage ${messages.length === 0 ? 'empty' : ''}`}><div className="ai-conversation">{messages.length === 0 ? <div className="ai-conversation-empty"><strong>{mode === 'analysis' ? '把分析变成一段可以继续追问的对话' : '搜集资料、脑暴或讨论判断，都可以从这里开始'}</strong><p>{mode === 'analysis' ? sourceIds.length === 1 ? `本次只参考“${workspace.sources.find((source) => source.id === sourceIds[0])?.title ?? '当前分类'}”；也可补充知识库资料。满意后再保存分析结果。` : '默认参考全部最新文档；也可选择知识库资料。满意后再保存分析结果。' : '对话不会自动进入知识库。只有点击“加入知识库”时才会沉淀。'}</p></div> : messages.map((message) => <article className={`ai-message ${message.role}`} key={message.id}><span>{message.role === 'user' ? '你' : provider === 'api' ? 'AI' : 'Codex'}</span>{message.role === 'assistant' ? <MarkdownView content={message.content} /> : <p>{message.content}</p>}{message.role === 'assistant' && <button onClick={() => addInsight(message.content, `${title} · 结论`)} type="button">将这条加入知识库</button>}</article>)}{working && <div className="ai-thinking"><span className="run-dot" />正在整理回复…</div>}</div>
       <div className="ai-composer"><textarea value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void runTurn(); } }} placeholder="输入问题、补充资料或继续追问…" /><div><span>Enter 发送 · Shift+Enter 换行</span>{working ? <button onClick={cancel} type="button">停止</button> : <button className="primary" onClick={() => runTurn()} disabled={!input.trim() || (provider === 'api' && apiConfigured !== true)} type="button">发送</button>}</div></div></div>
       {errorText && <p className="ai-error">{errorText}</p>}<CodexRunView run={codexRun} />
       <footer className="ai-modal-footer"><span>{messages.length ? `已保留 ${messages.length} 条对话` : '尚未开始对话'}</span><div>{lastAssistant && <button onClick={() => runTurn('请基于整段对话整理一份可独立阅读的核心结论。明确区分证据事实、运营判断和待确认假设；去掉对话口吻，保留关键依据与下一步建议。', true)} disabled={working} type="button">总结并加入知识库</button>}{mode === 'analysis' && lastAssistant && <button className="primary" onClick={saveAnalysis} disabled={working} type="button">保存为分析结果</button>}</div></footer>
@@ -656,6 +807,7 @@ function ContentWorkbench({ workspace, refresh, setNotice, setView }: { workspac
   const [toneMenuOpen, setToneMenuOpen] = useState(false);
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const [finalizePending, setFinalizePending] = useState(false);
+  const [depositOpen, setDepositOpen] = useState(false);
   const selectedMetadata = metadataFor(selectedPath);
   const contentTurns = selectedMetadata?.conversationTurns ?? [];
   const contentVersions = selectedMetadata?.versions ?? [];
@@ -899,7 +1051,7 @@ function ContentWorkbench({ workspace, refresh, setNotice, setView }: { workspac
   function createVisual() {
     if (!draft.trim()) return;
     sessionStorage.setItem('lumiterra-content-visual-brief', JSON.stringify({ content: draft, contentPath: selectedPath || '', linkContent: Boolean(selectedPath), knowledgePaths }));
-    setView('assets'); setNotice({ tone: 'success', text: '当前内容已带入素材工作室' });
+    setView('assets'); setNotice({ tone: 'success', text: '当前内容已带入视觉创作' });
   }
 
   function openLinkedAsset(path: string) {
@@ -913,7 +1065,7 @@ function ContentWorkbench({ workspace, refresh, setNotice, setView }: { workspac
       <aside className="box content-history"><BoxHeader title="内容记录" />
         <div className="content-history-filters">{([['all', '全部'], ['draft', '草稿'], ['final', '定稿'], ['published', '已发布'], ['review', '需复核']] as const).map(([key, label]) => <button className={filter === key ? 'active' : ''} onClick={() => setFilter(key)} key={key} type="button">{label}</button>)}</div>
         {visibleFiles.length === 0 && <Empty text="暂无内容记录" />}
-        {visibleFiles.map((file) => { const metadata = metadataFor(file.path); return <button className={`content-history-row ${file.path === selectedPath ? 'active' : ''}`} onClick={() => selectFile(file)} key={file.path} type="button"><span className={metadata?.reviewRequired ? 'review' : ''}>{statusLabel(metadata)}</span><strong>{contentPreview(file.content)}</strong><small>{formatLabels[metadata?.format ?? 'post']} · {Math.max(1, metadata?.versions?.length ?? 0)} 版 · {formatTime(file.updatedAt)}</small></button>; })}
+        {visibleFiles.map((file) => { const metadata = metadataFor(file.path); return <button className={`content-history-row ${file.path === selectedPath ? 'active' : ''}`} onClick={() => selectFile(file)} key={file.path} type="button"><span className={metadata?.reviewRequired ? 'review' : ''}>{statusLabel(metadata)}</span><strong>{contentWorkTitle(file, metadata)}</strong><small>{formatLabels[metadata?.format ?? 'post']} · {Math.max(1, metadata?.versions?.length ?? 0)} 版 · {formatTime(file.updatedAt)}</small></button>; })}
       </aside>
 
       <main className="content-workbench-main">
@@ -928,7 +1080,7 @@ function ContentWorkbench({ workspace, refresh, setNotice, setView }: { workspac
         </section>}
 
         <section className="box content-result">
-          <BoxHeader title={directionRun ? '选择创作方向' : isFinalized ? '已完成内容' : '当前内容'} action={<div className="inline-actions">{hasUnsavedChanges && <span className="local-draft-status">本地未保存</span>}{selectedMetadata?.generator && <span className="provider-meta">{selectedMetadata.generator === 'api' ? selectedMetadata.model || 'OpenAI API' : 'Codex'}</span>}<span className={`content-status ${selectedMetadata?.reviewRequired ? 'review' : ''}`}>{statusLabel(selectedMetadata)}</span>{draft && !directionRun && !isFinalized && <button className="link-button" onClick={() => setEditing(!editing)} type="button">{editing ? '预览' : '编辑'}</button>}</div>} />
+          <BoxHeader title={directionRun ? '选择创作方向' : selectedMetadata?.reviewRequired ? '定稿待复核' : selectedMetadata?.status === 'published' ? '已发布内容' : selectedMetadata?.status === 'final' ? '已定稿内容' : '当前草稿'} action={<div className="inline-actions">{hasUnsavedChanges && <span className="local-draft-status">本地未保存</span>}{selectedMetadata?.generator && <span className="provider-meta">{selectedMetadata.generator === 'api' ? selectedMetadata.model || 'OpenAI API' : 'Codex'}</span>}<span className={`content-status ${selectedMetadata?.reviewRequired ? 'review' : ''}`}>{statusLabel(selectedMetadata)}</span>{draft && !directionRun && !isFinalized && <button className="link-button" onClick={() => setEditing(!editing)} type="button">{editing ? '预览' : '编辑'}</button>}</div>} />
 
           {directionRun ? <section className="direction-board direction-board-focus">
             <div className="direction-board-head"><div><span>方向探索</span><strong>选定一个方向后，再进入编辑和多轮修改</strong></div><button onClick={cancelContentEdit} type="button">取消选择</button></div>
@@ -943,7 +1095,7 @@ function ContentWorkbench({ workspace, refresh, setNotice, setView }: { workspac
 
             {editing && !isFinalized ? <textarea className="draft-editor fast-content-editor" value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="也可以直接在这里写内容。" /> : format === 'post' || format === 'reply' || format === 'quote' ? <TwitterPreview title="" content={draft} /> : <div className="plain-content-preview">{draft || '暂无内容'}</div>}
 
-            {isFinalized ? <div className="content-complete-state"><div><span>{selectedMetadata?.status === 'published' ? '已发布' : '已定稿 · 已进入内容记忆'}</span><strong>这条内容已退出编辑状态</strong></div><div><button onClick={branchFromFinal} type="button">基于此稿继续创作</button>{selectedMetadata?.status === 'final' && <button onClick={() => save('published')} disabled={working} type="button">标记已发布</button>}<button className="primary" onClick={newContent} type="button">开始下一条</button></div></div> : <>
+            {isFinalized ? <div className="content-complete-state"><div><span>{selectedMetadata?.reviewRequired ? '产品资料已更新' : selectedMetadata?.status === 'published' ? '已发布' : '已定稿 · 已进入内容记忆'}</span><strong>{selectedMetadata?.reviewRequired ? '使用前需要重新核对产品事实' : '这条内容已退出编辑状态'}</strong></div><div>{selectedMetadata?.reviewRequired && <button className="primary" onClick={branchFromFinal} type="button">重新核对并修改</button>}{!selectedMetadata?.reviewRequired && selectedMetadata?.status === 'final' && <button className="primary" onClick={() => save('published')} disabled={working} type="button">标记已发布</button>}{!selectedMetadata?.reviewRequired && <button onClick={branchFromFinal} type="button">基于此稿创建新版本</button>}<button onClick={() => setDepositOpen(true)} type="button">沉淀到知识库</button><button onClick={newContent} type="button">开始下一条</button></div></div> : <>
               {draft && <div className="creation-conversation"><div className="conversation-head"><strong>围绕当前方向继续修改</strong><span>{contentTurns.length} 轮{selectedMetadata?.conversationSummary ? ' · 已整理前序要求' : ''}</span></div>{contentTurns.length > 0 && <details className="conversation-history-details"><summary>查看最近 {Math.min(4, contentTurns.length)} 轮调整</summary><div className="conversation-turns">{contentTurns.slice(-4).map((turn, index) => <div key={turn.id}><span>{turn.provider === 'api' ? 'API' : 'Codex'} · {Math.max(1, contentTurns.length - Math.min(4, contentTurns.length) + index + 1)}</span><p>{turn.instruction}</p></div>)}</div></details>}<div className="conversation-input"><input value={conversationInput} onChange={(event) => setConversationInput(event.target.value)} placeholder="说清楚：保留什么、只改什么、避免什么" onKeyDown={(event) => { if (event.key === 'Enter' && conversationInput.trim() && !working) void runContent(conversationInput); }} /><button className="primary" onClick={() => runContent(conversationInput)} disabled={!conversationInput.trim() || working || (executionMode === 'api' && apiConfigured !== true)} type="button">继续修改</button></div></div>}
 
               {draft && <div className="content-action-groups compact-actions">
@@ -963,6 +1115,7 @@ function ContentWorkbench({ workspace, refresh, setNotice, setView }: { workspac
         </section>
       </main>
     </div>
+    {depositOpen && selectedPath && <KnowledgeDepositModal workspace={workspace} input={{ origin: 'content', title: `${contentPreview(draft)} · 内容表达结论`, content: `有效表达案例：\n\n${draft}\n\n可复用判断：`, targetPath: selectedPath, topicPath: knowledgePaths.find((path) => workspace.knowledgeMetadata.find((item) => item.path === path)?.type === 'topic') }} onClose={() => setDepositOpen(false)} refresh={refresh} setNotice={setNotice} />}
   </div>;
 }
 
@@ -1052,6 +1205,29 @@ function TwitterPreview({ title, content }: { title: string; content: string }) 
   return <div className="twitter-preview-wrap"><div className="twitter-preview"><div className="twitter-avatar">L</div><div><div className="twitter-author"><strong>Lumiterra</strong><span>@LumiterraGame · now</span></div><p>{content || title || 'Twitter 内容预览'}</p><div className="twitter-actions"><span>Reply</span><span>Repost</span><span>Like</span><span>Share</span></div></div></div></div>;
 }
 
+function AssetMentionField({ label, value, onChange, items, metadataFor, onMention, placeholder, multiline = false }: { label: string; value: string; onChange: (value: string) => void; items: WorkFile[]; metadataFor: (path: string) => AssetMetadata | undefined; onMention: (path: string) => void; placeholder: string; multiline?: boolean }) {
+  const [mentionOpen, setMentionOpen] = useState(false);
+  const match = value.match(/@([\w-]*)$/);
+  const query = (match?.[1] ?? '').toLowerCase();
+  const suggestions = items.filter((file) => {
+    const metadata = metadataFor(file.path);
+    return !query || `${metadata?.assetCode ?? ''} ${metadata?.title ?? displayName(file)}`.toLowerCase().includes(query);
+  }).slice(0, 8);
+  function update(next: string) {
+    onChange(next);
+    setMentionOpen(/@[\w-]*$/.test(next));
+  }
+  function choose(file: WorkFile) {
+    const metadata = metadataFor(file.path);
+    if (!metadata?.assetCode) return;
+    const next = match ? value.slice(0, match.index ?? value.length) + `@${metadata.assetCode} ` : `${value}${value && !value.endsWith(' ') ? ' ' : ''}@${metadata.assetCode} `;
+    onChange(next);
+    onMention(file.path);
+    setMentionOpen(false);
+  }
+  return <label className="asset-mention-field">{label}<span className="mention-hint">输入 @ 引用本次已选图片</span>{multiline ? <textarea value={value} onChange={(event) => update(event.target.value)} onFocus={() => setMentionOpen(Boolean(match))} placeholder={placeholder} /> : <input value={value} onChange={(event) => update(event.target.value)} onFocus={() => setMentionOpen(Boolean(match))} placeholder={placeholder} onKeyDown={(event) => { if (event.key === 'Escape') setMentionOpen(false); }} />}{mentionOpen && <div className="asset-mention-menu">{suggestions.length ? suggestions.map((file) => { const metadata = metadataFor(file.path); return <button onMouseDown={(event) => event.preventDefault()} onClick={() => choose(file)} type="button" key={file.path}><Image src={`/api/file?path=${encodeURIComponent(file.path)}`} alt={metadata?.title ?? displayName(file)} width={72} height={52} unoptimized /><span><strong>@{metadata?.assetCode}</strong><small>{metadata?.title ?? displayName(file)}{metadata?.version ? ` · V${metadata.version}` : ''}</small></span></button>; }) : <p>{items.length ? '没有匹配的已选图片' : '请先在参考资料中添加图片'}</p>}</div>}</label>;
+}
+
 function AssetStudio({ workspace, refresh, setNotice, active }: { workspace: Workspace; refresh: (silent?: boolean) => Promise<void>; setNotice: (notice: Notice) => void; active: boolean }) {
   const assets = workspace.outputs.filter((file) => file.path.startsWith('outputs/assets/'));
   const contentFiles = workspace.outputs.filter((file) => file.path.startsWith('outputs/twitter/'));
@@ -1059,6 +1235,7 @@ function AssetStudio({ workspace, refresh, setNotice, active }: { workspace: Wor
   const imageAssets = mediaAssets.filter((file) => ['png', 'jpg', 'jpeg', 'webp'].includes(file.kind));
   const metadataFor = (path: string) => workspace.assetMetadata.find((item) => item.path === path);
   const generatedAssets = imageAssets.filter((file) => metadataFor(file.path)?.source === 'generated');
+  const libraryGeneratedAssets = generatedAssets.filter((file) => !/连通性测试|api[\s_-]*ok/i.test(`${metadataFor(file.path)?.title ?? ''}\n${file.name}`));
   const referenceAssets = mediaAssets.filter((file) => metadataFor(file.path)?.source !== 'generated' || metadataFor(file.path)?.visualReference);
   const defaultReferencePaths = workspace.assetMetadata.filter((item) => item.defaultReference && imageAssets.some((file) => file.path === item.path)).map((item) => item.path);
   const [mode, setMode] = useState<'create' | 'references' | 'works'>('create');
@@ -1084,6 +1261,7 @@ function AssetStudio({ workspace, refresh, setNotice, active }: { workspace: Wor
   const [knowledgePaths, setKnowledgePaths] = useState<string[]>([]);
   const [formRestored, setFormRestored] = useState(false);
   const [referencePickerOpen, setReferencePickerOpen] = useState(false);
+  const [targetPickerOpen, setTargetPickerOpen] = useState(false);
   const [generationFailure, setGenerationFailure] = useState<ImageGenerationFailure | null>(null);
   const [imageConfigured, setImageConfigured] = useState<boolean | null>(null);
   const [imageModel, setImageModel] = useState('gpt-image-2');
@@ -1091,6 +1269,7 @@ function AssetStudio({ workspace, refresh, setNotice, active }: { workspace: Wor
   const [referenceFilter, setReferenceFilter] = useState<'全部' | AssetRole>('全部');
   const [workFilter, setWorkFilter] = useState<'all' | 'draft' | 'adopted'>('all');
   const [assetIterationOpen, setAssetIterationOpen] = useState(false);
+  const [depositOpen, setDepositOpen] = useState(false);
   const activeAsset = assets.find((file) => file.path === selectedAsset);
   const activeMetadata = metadataFor(selectedAsset);
   const assetCompleted = activeMetadata?.status === 'adopted' && !assetIterationOpen;
@@ -1101,19 +1280,26 @@ function AssetStudio({ workspace, refresh, setNotice, active }: { workspace: Wor
   const detailAsset = assets.find((file) => file.path === detailAssetPath);
   const detailMetadata = metadataFor(detailAssetPath);
   const selectedReferences = references.map((path) => imageAssets.find((file) => file.path === path)).filter((file): file is WorkFile => Boolean(file));
+  const mentionableAssets = selectedReferences;
   const filteredReferences = referenceAssets.filter((file) => referenceFilter === '全部' || (metadataFor(file.path)?.role ?? '未分类') === referenceFilter);
-  const workGroups = Array.from(generatedAssets.reduce<Map<string, WorkFile[]>>((groups, file) => {
+  const workGroups = Array.from(libraryGeneratedAssets.reduce<Map<string, WorkFile[]>>((groups, file) => {
     const metadata = metadataFor(file.path);
     if (workFilter !== 'all' && (metadata?.status ?? 'draft') !== workFilter) return groups;
     const key = metadata?.groupId ?? metadata?.title ?? file.name;
     groups.set(key, [...(groups.get(key) ?? []), file]);
     return groups;
-  }, new Map()).values()).map((files) => files.sort((a, b) => (metadataFor(b.path)?.version ?? 1) - (metadataFor(a.path)?.version ?? 1)));
+  }, new Map()).values()).map((files) => files.sort((a, b) => (metadataFor(b.path)?.version ?? 1) - (metadataFor(a.path)?.version ?? 1))).sort((a, b) => b[0].updatedAt.localeCompare(a[0].updatedAt));
   const detailVersions = detailMetadata?.source === 'generated' ? generatedAssets.filter((file) => (metadataFor(file.path)?.groupId ?? metadataFor(file.path)?.title) === (detailMetadata.groupId ?? detailMetadata.title)).sort((a, b) => (metadataFor(b.path)?.version ?? 1) - (metadataFor(a.path)?.version ?? 1)) : [];
   const linkedBrief = detailMetadata?.briefPath ? workspace.outputs.find((file) => file.path === detailMetadata.briefPath) : workspace.outputs.find((file) => file.kind === 'md' && detailMetadata?.title && file.content?.toLowerCase().includes(detailMetadata.title.toLowerCase()));
   const linkedRecord = detailMetadata?.sessionPath ? workspace.records.find((file) => file.path === detailMetadata.sessionPath) : workspace.records.find((file) => detailMetadata?.title && file.content?.toLowerCase().includes(detailMetadata.title.toLowerCase()));
   const availableSeries = [...new Set(workspace.assetMetadata.map((item) => item.seriesName).filter((name): name is string => Boolean(name)))];
   const recentSeries = availableSeries.map((name) => ({ name, file: generatedAssets.filter((file) => metadataFor(file.path)?.seriesName === name).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0] })).filter((item): item is { name: string; file: WorkFile } => Boolean(item.file)).sort((a, b) => b.file.updatedAt.localeCompare(a.file.updatedAt)).slice(0, 4);
+  const mentionedPaths = (...texts: string[]) => imageAssets.filter((file) => {
+    const code = metadataFor(file.path)?.assetCode;
+    return Boolean(code && texts.some((text) => text.toLowerCase().includes(`@${code.toLowerCase()}`)));
+  }).map((file) => file.path);
+  const resolvedReferences = (adjustmentText = '') => [...new Set([...references, ...mentionedPaths(message, requirements, adjustmentText)])].filter((path) => path !== selectedAsset);
+  const activeAssetLabel = activeMetadata ? `${activeMetadata.assetCode ? `@${activeMetadata.assetCode} · ` : ''}${activeMetadata.title}${activeMetadata.version ? ` · V${activeMetadata.version}` : ''}` : '';
 
   useEffect(() => { fetch('/api/image', { cache: 'no-store' }).then(async (response) => await response.json() as { configured?: boolean; model?: string }).then((result) => { setImageConfigured(Boolean(result.configured)); if (result.model) setImageModel(result.model); }).catch(() => setImageConfigured(false)); }, []);
   useEffect(() => {
@@ -1186,8 +1372,10 @@ function AssetStudio({ workspace, refresh, setNotice, active }: { workspace: Wor
   }, [formRestored, mode, creationMode, creationSource, linkedContentPath, linkContent, seriesSelection, seriesName, seriesRules, adjustment, title, usage, message, format, quality, requirements, selectedAsset, references, executionMode, knowledgePaths, assetIterationOpen]);
 
   function briefText(adjustmentText = '') {
-    const sourceLabel = creationSource === 'content' ? '基于内容制作' : creationSource === 'series' ? '系列创作' : '独立制作';
-    return `素材类型：图片\n创作来源：${sourceLabel}\n用途：${usage}\n画面目标：${message}\n规格：${format}\n${creationSource === 'series' ? `系列名称：${seriesName}\n系列视觉规则：${seriesRules || '沿用已确认作品与参考素材'}\n` : ''}${adjustmentText ? `本轮调整：${adjustmentText}\n` : ''}补充要求：${requirements || '无'}\n参考素材：${references.join('、') || '无'}\n内容关联：${creationSource === 'content' && linkContent && linkedContentPath ? linkedContentPath : '无'}${knowledgePaths.length ? `\n\n${knowledgeReferenceText(workspace, knowledgePaths)}\n\n使用规则：知识库只提供运营背景，最新 sources/ 仍是产品事实来源。` : ''}`;
+    const sourceLabel = creationSource === 'edit' ? '修改指定图片' : creationSource === 'content' ? '基于内容制作' : creationSource === 'series' ? '系列创作' : '独立制作';
+    const referencePaths = resolvedReferences(adjustmentText);
+    const referenceDescription = referencePaths.map((path) => { const metadata = metadataFor(path); return `${metadata?.assetCode ? `@${metadata.assetCode}` : metadata?.title ?? path}=${path}`; }).join('、') || '无';
+    return `素材类型：图片\n创作来源：${sourceLabel}\n${creationSource === 'edit' ? `修改对象：${activeAssetLabel || '未选择'}\n修改对象路径：${selectedAsset || '未选择'}\n` : ''}用途：${usage}\n画面目标：${message}\n规格：${format}\n${creationSource === 'series' ? `系列名称：${seriesName}\n系列视觉规则：${seriesRules || '沿用已确认作品与参考素材'}\n` : ''}${adjustmentText ? `本轮调整：${adjustmentText}\n` : ''}补充要求：${requirements || '无'}\n引用图片：${referenceDescription}\n使用规则：修改对象是唯一需要编辑的主图；@编号图片只承担用户指定的参考作用，不得互相替代。\n内容关联：${creationSource === 'content' && linkContent && linkedContentPath ? linkedContentPath : '无'}${knowledgePaths.length ? `\n\n${knowledgeReferenceText(workspace, knowledgePaths)}\n\n知识库只提供运营背景，最新 sources/ 仍是产品事实来源。` : ''}`;
   }
 
   function savedPromptField(prompt: string | undefined, label: string) {
@@ -1208,30 +1396,41 @@ function AssetStudio({ workspace, refresh, setNotice, active }: { workspace: Wor
   }
 
   function startNewCreation() {
-    if (!confirmCreationSwitch('当前创作和已生成版本会保留在“生成作品”中。是否开始新创作？')) return;
+    if (!confirmCreationSwitch('当前创作和历史版本会保留在“我的作品”中。是否开始新创作？')) return;
     clearAssetWorkspace();
   }
 
   function cancelAssetCreation() {
     if (working) return;
-    if (activeAsset) {
-      continueWith(activeAsset);
-      setAssetIterationOpen(false);
-      setNotice({ tone: 'success', text: '已放弃未保存调整，生成作品和历史版本仍保留' });
-      return;
-    }
+    const hadSavedAsset = Boolean(activeAsset);
     clearAssetWorkspace();
-    setNotice({ tone: 'success', text: '已取消本次图片制作' });
+    setMode('works');
+    localStorage.removeItem('lumiterra-asset-working-draft');
+    setNotice({ tone: 'success', text: hadSavedAsset ? '已退出本次创作，未保存调整已放弃；作品和历史版本仍保留' : '已取消本次视觉创作' });
   }
 
   function chooseCreationSource(next: AssetCreationSource) {
-    if (next === creationSource) return;
-    if (selectedAsset && !confirmCreationSwitch('当前创作和已生成版本会保留在“生成作品”中。是否切换创作方式？')) return;
+    if (next === creationSource) { if (next === 'edit') setTargetPickerOpen(true); return; }
+    if (selectedAsset && !confirmCreationSwitch('当前创作和历史版本会保留在“我的作品”中。是否切换创作方式？')) return;
     setCreationSource(next); setAdjustment('');
-    setSelectedAsset(''); setReferences(defaultReferencePaths); setCreationMode('new');
+    setSelectedAsset(''); setReferences(next === 'edit' ? [] : defaultReferencePaths); setCreationMode(next === 'edit' ? 'edit' : 'new');
+    if (next === 'edit') setTargetPickerOpen(true);
     if (next === 'independent') { setLinkedContentPath(''); setLinkContent(false); }
     if (next === 'content') { setUsage('社交内容配图'); setLinkContent(Boolean(linkedContentPath)); }
     if (next === 'series') { setLinkContent(false); setLinkedContentPath(''); }
+  }
+
+  function chooseEditTarget(file: WorkFile) {
+    const metadata = metadataFor(file.path);
+    setSelectedAsset(file.path); setCreationMode('edit'); setCreationSource('edit'); setTargetPickerOpen(false); setAssetIterationOpen(true);
+    setReferences((current) => current.filter((path) => path !== file.path));
+    setTitle(metadata?.title ?? displayName(file));
+    if (metadata?.usage) setUsage(normalizedAssetUsage(metadata.usage));
+    if (metadata?.source === 'generated') {
+      setMessage(savedPromptField(metadata.prompt, '画面目标') ?? '');
+      const priorRequirements = savedPromptField(metadata.prompt, '补充要求');
+      setRequirements(priorRequirements === '无' ? '' : priorRequirements ?? '');
+    } else { setMessage(''); setRequirements(''); }
   }
 
   function chooseContent(path: string) {
@@ -1249,27 +1448,7 @@ function AssetStudio({ workspace, refresh, setNotice, active }: { workspace: Wor
     const latest = nextLatest;
     const metadata = latest ? metadataFor(latest.path) : undefined;
     setSeriesName(value); setSeriesRules(metadata?.seriesRules ?? '');
-    if (latest) { setSelectedAsset(latest.path); setReferences([latest.path]); setCreationMode('edit'); setTitle(metadata?.title ?? value); setUsage(normalizedAssetUsage(metadata?.usage)); setRequirements(''); setKnowledgePaths(metadata?.knowledgePaths ?? []); }
-  }
-
-  async function saveBrief() {
-    setWorking(true);
-    try { const result = await api<{ path: string }>({ action: 'saveOutput', category: 'assets', title, content: briefText() }); if (knowledgePaths.length) await api({ action: 'recordKnowledgeUsage', knowledgePaths, targetPath: result.path }); await refresh(true); setNotice({ tone: 'success', text: '创作要求已保存' }); }
-    catch (error) { setNotice({ tone: 'error', text: error instanceof Error ? error.message : '保存失败' }); }
-    finally { setWorking(false); }
-  }
-
-  async function runCodexBrief() {
-    setWorking(true); setCodexRun(null);
-    try {
-      const request = await api<{ path: string }>({ action: 'createRequest', kind: 'creation', outputType: 'assets', title: `${title || '图片素材'}创意方案`, brief: `${briefText()}\n\n本次只完善创意方案，不生成图片。请写出可继续编辑的画面方案与提示词，包括主体、环境、构图、氛围、色彩、关键细节和避免事项。` });
-      const run = await executeCodex(request.path, setCodexRun);
-      if (run.status === 'failed') throw new Error(run.error || '创意方案未完成');
-      const result = run.resultFiles.find((file) => file.path.startsWith('outputs/assets/') && ['md', 'txt'].includes(file.path.split('.').pop() ?? ''));
-      if (result?.content) setRequirements(stripTitle(result.content));
-      await refresh(true); setNotice({ tone: 'success', text: '创意方案已生成' });
-    } catch (error) { setNotice({ tone: 'error', text: error instanceof Error ? error.message : '创建失败' }); }
-    finally { setWorking(false); }
+    if (latest) { setSelectedAsset(latest.path); setReferences((metadata?.references ?? []).filter((path) => path !== latest.path)); setCreationMode('edit'); setTitle(metadata?.title ?? value); setUsage(normalizedAssetUsage(metadata?.usage)); setRequirements(''); setKnowledgePaths(metadata?.knowledgePaths ?? []); }
   }
 
   async function runCodexImage(adjustmentText = '') {
@@ -1281,6 +1460,7 @@ function AssetStudio({ workspace, refresh, setNotice, active }: { workspace: Wor
       const session = conversationState(parentMetadata, 'codex', turnInstruction);
       const resumeThreadId = session.restart ? undefined : parentMetadata?.threadId;
       const linkedContentPaths = creationSource === 'content' && linkContent && linkedContentPath ? [linkedContentPath] : [];
+      const generationReferences = resolvedReferences(adjustmentText);
       const activeSeriesName = creationSource === 'series' ? seriesName.trim() : '';
       const activeBrief = `${briefText(adjustmentText)}${session.summary ? `\n前序创作已经确认的要求：\n${session.summary}` : ''}`;
       let displayedPath = '';
@@ -1300,8 +1480,8 @@ function AssetStudio({ workspace, refresh, setNotice, active }: { workspace: Wor
         if (!image || displayedPath === image.path) return;
         displayedPath = image.path;
         try {
-          await api({ action: 'registerGeneratedAsset', path: image.path, title, usage, prompt: activeBrief, references, parentPath, generator: 'codex', creationSource, linkedContentPaths, seriesName: activeSeriesName, seriesRules: activeSeriesName ? seriesRules : '', threadId: progress.threadId ?? resumeThreadId, conversationTurns: session.turns, conversationSummary: session.summary, knowledgePaths });
-          setSelectedAsset(image.path); setCreationMode('edit'); setReferences([image.path]); setAssetIterationOpen(false);
+          await api({ action: 'registerGeneratedAsset', path: image.path, title, usage, prompt: activeBrief, references: generationReferences, parentPath, generator: 'codex', creationSource, linkedContentPaths, seriesName: activeSeriesName, seriesRules: activeSeriesName ? seriesRules : '', threadId: progress.threadId ?? resumeThreadId, conversationTurns: session.turns, conversationSummary: session.summary, knowledgePaths });
+          setSelectedAsset(image.path); setCreationMode('edit'); setReferences(generationReferences.filter((path) => path !== image.path)); setAssetIterationOpen(false);
           await refresh(true); setNotice({ tone: 'success', text: '图片已生成并显示，Codex 正在保存记录' });
         } catch (error) {
           setNotice({ tone: 'error', text: error instanceof Error ? error.message : '图片已生成，但登记失败' });
@@ -1312,10 +1492,10 @@ function AssetStudio({ workspace, refresh, setNotice, active }: { workspace: Wor
       const result = run.resultFiles.find((file) => /\.(png|jpe?g|webp)$/i.test(file.path));
       if (!result) throw new Error('Codex 已完成任务，但没有检测到新图片');
       const brief = run.resultFiles.find((file) => file.path.startsWith('outputs/assets/') && /\.(md|txt)$/i.test(file.path));
-      await api({ action: 'registerGeneratedAsset', path: result.path, title, usage, prompt: activeBrief, references, parentPath, generator: 'codex', briefPath: brief?.path, creationSource, linkedContentPaths, seriesName: activeSeriesName, seriesRules: activeSeriesName ? seriesRules : '', threadId: run.threadId ?? resumeThreadId, conversationTurns: session.turns, conversationSummary: session.summary, knowledgePaths });
-      setSelectedAsset(result.path); setCreationMode('edit'); setReferences([result.path]); setAssetIterationOpen(false);
+      await api({ action: 'registerGeneratedAsset', path: result.path, title, usage, prompt: activeBrief, references: generationReferences, parentPath, generator: 'codex', briefPath: brief?.path, creationSource, linkedContentPaths, seriesName: activeSeriesName, seriesRules: activeSeriesName ? seriesRules : '', threadId: run.threadId ?? resumeThreadId, conversationTurns: session.turns, conversationSummary: session.summary, knowledgePaths });
+      setSelectedAsset(result.path); setCreationMode('edit'); setReferences(generationReferences.filter((path) => path !== result.path)); setAssetIterationOpen(false);
       setAdjustment('');
-      await refresh(true); setNotice({ tone: 'success', text: 'Codex 已生成图片并保存到生成作品' });
+      await refresh(true); setNotice({ tone: 'success', text: 'Codex 已生成图片并保存到我的作品' });
     } catch (error) { setNotice({ tone: 'error', text: error instanceof Error ? error.message : '图片生成失败' }); }
     finally { setWorking(false); }
   }
@@ -1328,18 +1508,19 @@ function AssetStudio({ workspace, refresh, setNotice, active }: { workspace: Wor
       const turnInstruction = adjustmentText.trim() || (parentPath ? '基于当前结果再生成一版' : `首次生成：${message}`);
       const session = conversationState(parentMetadata, 'api', turnInstruction);
       const canResume = !session.restart && parentMetadata?.generator === 'api';
-      const prompt = `${briefText(adjustmentText)}\n\n${references.length ? '请使用所附参考图片中的角色、世界观、配色或构图信息；' : ''}保持官方视觉一致，不要伪造或自行重绘不确定的 Logo。只生成一个图片版本。`;
+      const generationReferences = resolvedReferences(adjustmentText);
+      const prompt = `${briefText(adjustmentText)}\n\n${generationReferences.length ? '请严格按 @编号对应关系使用所附图片；' : ''}保持官方视觉一致，不要伪造或自行重绘不确定的 Logo。只生成一个图片版本。`;
       const linkedContentPaths = creationSource === 'content' && linkContent && linkedContentPath ? [linkedContentPath] : [];
-      const response = await fetch('/api/image', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, prompt, usage, ratio: format, quality, references, parentPath, creationSource, linkedContentPaths, seriesName: creationSource === 'series' ? seriesName : '', seriesRules: creationSource === 'series' ? seriesRules : '', threadId: parentMetadata?.threadId, conversationMode: Boolean(parentPath), previousResponseId: canResume ? parentMetadata?.apiResponseId : undefined, conversationTurns: session.turns, conversationSummary: session.summary, knowledgePaths }) });
+      const response = await fetch('/api/image', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, prompt, usage, ratio: format, quality, references: generationReferences, parentPath, creationSource, linkedContentPaths, seriesName: creationSource === 'series' ? seriesName : '', seriesRules: creationSource === 'series' ? seriesRules : '', threadId: parentMetadata?.threadId, conversationMode: Boolean(parentPath), previousResponseId: canResume ? parentMetadata?.apiResponseId : undefined, conversationTurns: session.turns, conversationSummary: session.summary, knowledgePaths }) });
       const result = await response.json() as { path?: string; responseId?: string; error?: string; code?: string; requestId?: string };
       if (!response.ok || !result.path) {
         const failure = { message: result.error || 'API 图片生成失败', code: result.code, requestId: result.requestId, failedAt: new Date().toISOString() };
         setGenerationFailure(failure); localStorage.setItem('lumiterra-asset-generation-failure', JSON.stringify(failure));
         throw new Error(failure.message);
       }
-      setSelectedAsset(result.path); setCreationMode('edit'); setReferences([result.path]); setAssetIterationOpen(false);
+      setSelectedAsset(result.path); setCreationMode('edit'); setReferences(generationReferences.filter((path) => path !== result.path)); setAssetIterationOpen(false);
       setAdjustment('');
-      await refresh(true); setNotice({ tone: 'success', text: 'API 已生成图片并保存到生成作品' });
+      await refresh(true); setNotice({ tone: 'success', text: 'API 已生成图片并保存到我的作品' });
     } catch (error) { setNotice({ tone: 'error', text: error instanceof Error ? error.message : '图片生成失败' }); }
     finally { setWorking(false); }
   }
@@ -1377,9 +1558,21 @@ function AssetStudio({ workspace, refresh, setNotice, active }: { workspace: Wor
     setReferences((current) => current.includes(path) ? current.filter((item) => item !== path) : [...current, path]);
   }
 
-  async function updateMetadata(path: string, changes: { role?: AssetRole; status?: 'draft' | 'adopted'; visualReference?: boolean; defaultReference?: boolean }) {
+  async function updateMetadata(path: string, changes: { title?: string; role?: AssetRole; status?: 'draft' | 'adopted'; visualReference?: boolean; defaultReference?: boolean }) {
     try { await api({ action: 'updateAssetMetadata', path, ...changes }); await refresh(true); return true; }
     catch (error) { setNotice({ tone: 'error', text: error instanceof Error ? error.message : '更新失败' }); return false; }
+  }
+
+  async function renameAsset(file: WorkFile, metadata?: AssetMetadata) {
+    const nextTitle = window.prompt('新的素材名称', metadata?.title ?? displayName(file))?.trim();
+    if (!nextTitle || nextTitle === metadata?.title) return;
+    if (await updateMetadata(file.path, { title: nextTitle })) setNotice({ tone: 'success', text: `已重命名为“${nextTitle}”` });
+  }
+
+  async function copyAssetMention(metadata?: AssetMetadata) {
+    if (!metadata?.assetCode) return;
+    await navigator.clipboard.writeText(`@${metadata.assetCode}`);
+    setNotice({ tone: 'success', text: `已复制 @${metadata.assetCode}` });
   }
 
   async function adoptCurrentAsset() {
@@ -1390,9 +1583,9 @@ function AssetStudio({ workspace, refresh, setNotice, active }: { workspace: Wor
   }
 
   function continueWith(file: WorkFile) {
-    if (file.path !== selectedAsset && !confirmCreationSwitch('当前创作和已生成版本会保留在“生成作品”中。是否载入这项创作？')) return;
+    if (file.path !== selectedAsset && !confirmCreationSwitch('当前创作和历史版本会保留在“我的作品”中。是否载入这项创作？')) return;
     const metadata = metadataFor(file.path);
-    setSelectedAsset(file.path); setReferences([file.path]); setCreationMode('edit'); setMode('create'); setDetailAssetPath('');
+    setSelectedAsset(file.path); setReferences((metadata?.references ?? []).filter((path) => path !== file.path)); setCreationMode('edit'); setCreationSource('edit'); setMode('create'); setDetailAssetPath('');
     setTitle(metadata?.title ?? displayName(file));
     if (metadata?.usage) setUsage(normalizedAssetUsage(metadata.usage));
     setMessage(savedPromptField(metadata?.prompt, '画面目标') ?? '');
@@ -1400,78 +1593,79 @@ function AssetStudio({ workspace, refresh, setNotice, active }: { workspace: Wor
     setRequirements(savedRequirements === '无' ? '' : savedRequirements ?? '');
     const savedFormat = savedPromptField(metadata?.prompt, '规格');
     if (savedFormat) setFormat(savedFormat);
-    const source = metadata?.creationSource ?? (metadata?.seriesName ? 'series' : metadata?.linkedContentPaths?.length ? 'content' : 'independent');
-    setCreationSource(source); setLinkedContentPath(metadata?.linkedContentPaths?.[0] ?? ''); setLinkContent(Boolean(metadata?.linkedContentPaths?.length));
+    setLinkedContentPath(metadata?.linkedContentPaths?.[0] ?? ''); setLinkContent(Boolean(metadata?.linkedContentPaths?.length));
     setSeriesName(metadata?.seriesName ?? ''); setSeriesRules(metadata?.seriesRules ?? ''); setSeriesSelection(metadata?.seriesName ?? 'new'); setAdjustment('');
     setKnowledgePaths(metadata?.knowledgePaths ?? []);
     setAssetIterationOpen(true);
   }
 
   function selectVersion(file: WorkFile) {
-    setSelectedAsset(file.path); setCreationMode('edit'); setReferences([file.path]); setAdjustment(''); setKnowledgePaths(metadataFor(file.path)?.knowledgePaths ?? []); setAssetIterationOpen(false);
+    const metadata = metadataFor(file.path);
+    setSelectedAsset(file.path); setCreationMode('edit'); setCreationSource('edit'); setReferences((metadata?.references ?? []).filter((path) => path !== file.path)); setAdjustment(''); setKnowledgePaths(metadata?.knowledgePaths ?? []); setAssetIterationOpen(false);
   }
 
   return <div className="page">
-    <SectionTitle title="素材工作室" action={<div className="library-actions"><button onClick={startNewCreation} type="button">新建创作</button><label className="upload-button">批量上传<input type="file" accept="image/*,video/mp4,video/webm,video/quicktime" onChange={upload} multiple hidden /></label></div>} />
-    <div className="workspace-tabs asset-tabs"><button className={mode === 'create' ? 'active' : ''} onClick={() => setMode('create')} type="button">图片制作</button><button className={mode === 'references' ? 'active' : ''} onClick={() => setMode('references')} type="button">参考素材 <span>{referenceAssets.length}</span></button><button className={mode === 'works' ? 'active' : ''} onClick={() => setMode('works')} type="button">生成作品 <span>{workGroups.length}</span></button></div>
+    <SectionTitle title="视觉创作" action={<div className="library-actions"><button onClick={startNewCreation} type="button">新建图片</button><label className="upload-button">批量上传<input type="file" accept="image/*,video/mp4,video/webm,video/quicktime" onChange={upload} multiple hidden /></label></div>} />
+    <div className="workspace-tabs asset-tabs"><button className={mode === 'create' ? 'active' : ''} onClick={() => setMode('create')} type="button">创作</button><button className={mode === 'references' ? 'active' : ''} onClick={() => setMode('references')} type="button">素材库 <span>{referenceAssets.length}</span></button><button className={mode === 'works' ? 'active' : ''} onClick={() => setMode('works')} type="button">我的作品 <span>{workGroups.length}</span></button></div>
 
     {mode === 'create' && <div className="asset-create-layout">
-      <section className="box asset-form"><BoxHeader title={assetCompleted ? '已采用作品' : creationMode === 'edit' ? '继续制作' : '图片制作'} action={<button className="link-button" onClick={cancelAssetCreation} disabled={working} type="button">取消本次制作</button>} />
-        <div className="creation-source-switch"><button className={creationSource === 'independent' ? 'active' : ''} onClick={() => chooseCreationSource('independent')} type="button"><strong>独立制作</strong><span>从零开始或使用参考</span></button><button className={creationSource === 'content' ? 'active' : ''} onClick={() => chooseCreationSource('content')} type="button"><strong>从内容制作</strong><span>使用现有内容作为输入</span></button><button className={creationSource === 'series' ? 'active' : ''} onClick={() => chooseCreationSource('series')} type="button"><strong>连续创作</strong><span>延续已有视觉继续迭代</span></button></div>
-        <div className="asset-execution-row"><span>执行方式</span><div className="execution-switch"><button className={executionMode === 'codex' ? 'active' : ''} onClick={() => setExecutionMode('codex')} type="button">Codex ImageGen</button><button className={executionMode === 'api' ? 'active' : ''} onClick={() => setExecutionMode('api')} disabled={imageConfigured === false} title={imageConfigured === false ? '未配置 OPENAI_API_KEY' : imageModel} type="button">OpenAI API</button></div><small>{executionMode === 'api' ? imageModel : '当前 Codex 会话'}</small></div>
+      <section className="box asset-form"><BoxHeader title={assetCompleted ? '已采用作品' : creationSource === 'edit' ? '修改图片' : creationMode === 'edit' ? '继续创作' : '创作图片'} action={<button className="link-button" onClick={cancelAssetCreation} disabled={working} type="button">取消本次创作</button>} />
+        <div className="creation-source-switch"><button className={creationSource === 'independent' ? 'active' : ''} onClick={() => chooseCreationSource('independent')} type="button"><strong>生成新图</strong></button><button className={creationSource === 'edit' ? 'active' : ''} onClick={() => chooseCreationSource('edit')} type="button"><strong>修改图片</strong></button><button className={creationSource === 'content' ? 'active' : ''} onClick={() => chooseCreationSource('content')} type="button"><strong>内容配图</strong></button><button className={creationSource === 'series' ? 'active' : ''} onClick={() => chooseCreationSource('series')} type="button"><strong>连续创作</strong></button></div>
+        {creationSource === 'edit' && <div className="edit-target-block"><div><span>修改对象</span><small>只会把这一张图作为编辑主图</small></div>{activeAsset ? <button className="edit-target-card" onClick={() => setTargetPickerOpen(true)} type="button"><Image src={`/api/file?path=${encodeURIComponent(activeAsset.path)}`} alt={activeMetadata?.title ?? displayName(activeAsset)} width={120} height={90} unoptimized /><span><strong>@{activeMetadata?.assetCode ?? '待编号'}</strong><small>{activeMetadata?.title ?? displayName(activeAsset)}{activeMetadata?.version ? ` · V${activeMetadata.version}` : ''}</small></span><b>更换</b></button> : <button className="empty-edit-target" onClick={() => setTargetPickerOpen(true)} type="button">选择要修改的图片</button>}</div>}
         {creationSource === 'content' && <div className="creation-context-block"><label>选择内容<select value={linkedContentPath} onChange={(event) => chooseContent(event.target.value)}><option value="">{message ? '当前带入内容' : '选择一条已有内容'}</option>{contentFiles.map((file) => <option value={file.path} key={file.path}>{contentPreview(file.content)}</option>)}</select></label><label className="optional-link"><input type="checkbox" checked={linkContent} disabled={!linkedContentPath} onChange={(event) => setLinkContent(event.target.checked)} /><span>生成后关联到这条内容</span></label></div>}
         {creationSource === 'series' && <div className="creation-context-block series-context"><label>选择连续创作<select value={seriesSelection} onChange={(event) => chooseSeries(event.target.value)}><option value="new">新建连续创作</option>{availableSeries.map((name) => <option value={name} key={name}>{name}</option>)}</select></label><label>创作名称<input value={seriesName} onChange={(event) => setSeriesName(event.target.value)} disabled={seriesSelection !== 'new'} placeholder="给这组连续作品命名" /></label>{recentSeries.length > 0 && <div className="wide recent-series"><span>最近使用</span><div>{recentSeries.map((item) => <button className={seriesSelection === item.name ? 'active' : ''} onClick={() => chooseSeries(item.name)} type="button" key={item.name}><Image src={`/api/file?path=${encodeURIComponent(item.file.path)}`} alt={item.name} width={120} height={80} unoptimized /><strong>{item.name}</strong></button>)}</div></div>}<label className="wide">持续保持的视觉要素<textarea value={seriesRules} onChange={(event) => setSeriesRules(event.target.value)} placeholder="角色、Logo、配色、构图、排版或其他需要延续的要素" /></label></div>}
         <div className="asset-form-grid"><label>作品名称<input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="给当前作品命名" /></label><label>用途<select value={usage} onChange={(event) => setUsage(event.target.value)}><option>社交内容配图</option><option>Campaign 视觉</option><option>Key Visual</option><option>产品说明</option><option>社区互动</option><option>产品演示</option><option>其他</option></select></label></div>
-        <label>画面目标<textarea value={message} onChange={(event) => setMessage(event.target.value)} placeholder="这张图第一眼要传达什么？" /></label>
-        <div className="asset-options"><label>比例<select value={format} onChange={(event) => setFormat(event.target.value)}><option>1:1</option><option>16:9</option><option>4:5</option><option>9:16</option></select></label><label>精细度<select value={quality} onChange={(event) => setQuality(event.target.value)}><option value="low">快速</option><option value="medium">标准</option><option value="high">精细</option></select></label></div>
-        <label>补充要求<textarea value={requirements} onChange={(event) => setRequirements(event.target.value)} placeholder="角色、场景、构图、氛围、配色、需要避免的内容" /></label>
-        <KnowledgeReferencePicker workspace={workspace} selected={knowledgePaths} onChange={setKnowledgePaths} query={`${title}\n${message}\n${requirements}`} />
-        <div className="selected-reference-block"><div><strong>本次参考</strong><span>已选 {references.length} 张</span><button onClick={() => setReferencePickerOpen(true)} type="button">选择参考</button></div>{selectedReferences.length ? <div className="selected-reference-row">{selectedReferences.map((file) => <button onClick={() => toggleReference(file.path)} key={file.path} title="移除参考" type="button"><Image src={`/api/file?path=${encodeURIComponent(file.path)}`} alt={displayName(file)} width={160} height={110} unoptimized /><span>×</span></button>)}</div> : <p>未选择参考图片</p>}</div>
-        <div className="form-actions asset-primary-actions"><button className="primary" onClick={() => runImage()} disabled={working || assetCompleted || !title || !message || (creationSource === 'series' && !seriesName.trim()) || (executionMode === 'api' && imageConfigured !== true)} type="button">{working ? '正在生成…' : creationMode === 'edit' ? '按当前设置生成' : executionMode === 'api' ? '使用 API 生成' : '使用 Codex 生成'}</button><button onClick={runCodexBrief} disabled={working || assetCompleted || !title} type="button">Codex 生成方案</button><button onClick={saveBrief} disabled={working || assetCompleted || !title} type="button">保存创作要求</button></div>
+        <AssetMentionField label="画面目标" value={message} onChange={setMessage} items={mentionableAssets} metadataFor={metadataFor} onMention={(path) => setReferences((current) => [...new Set([...current.filter((item) => item !== selectedAsset), path])])} placeholder="描述要生成的画面；输入 @ 精准指定某张参考图片" multiline />
+        <section className="creation-reference-panel"><div className="creation-reference-head"><div><strong>参考资料</strong><span>图片 {resolvedReferences().length} 张 · 知识库 {knowledgePaths.length} 条</span></div><div><button onClick={() => setReferencePickerOpen(true)} type="button">添加图片</button><KnowledgeReferencePicker workspace={workspace} selected={knowledgePaths} onChange={setKnowledgePaths} query={`${title}\n${message}\n${requirements}`} label="知识库" emptyLabel="添加知识" /></div></div>{selectedReferences.length ? <div className="selected-reference-row">{selectedReferences.map((file) => <button onClick={() => toggleReference(file.path)} key={file.path} title="移除参考" type="button"><Image src={`/api/file?path=${encodeURIComponent(file.path)}`} alt={displayName(file)} width={160} height={110} unoptimized /><small>@{metadataFor(file.path)?.assetCode}</small><span>×</span></button>)}</div> : <p>暂无图片参考；添加图片后，可在画面目标中输入 @ 精准指定它的作用。</p>}</section>
+        <details className="asset-advanced-settings"><summary><span><strong>更多设置</strong><small>{executionMode === 'api' ? 'OpenAI API' : 'Codex ImageGen'} · {format} · {quality === 'high' ? '精细' : quality === 'low' ? '快速' : '标准'}</small></span><b>展开</b></summary><div className="asset-advanced-grid"><div className="asset-execution-row"><span>执行方式</span><div className="execution-switch"><button className={executionMode === 'codex' ? 'active' : ''} onClick={() => setExecutionMode('codex')} type="button">Codex ImageGen</button><button className={executionMode === 'api' ? 'active' : ''} onClick={() => setExecutionMode('api')} disabled={imageConfigured === false} title={imageConfigured === false ? '未配置 OPENAI_API_KEY' : imageModel} type="button">OpenAI API</button></div></div><label>比例<select value={format} onChange={(event) => setFormat(event.target.value)}><option>1:1</option><option>16:9</option><option>4:5</option><option>9:16</option></select></label><label>精细度<select value={quality} onChange={(event) => setQuality(event.target.value)}><option value="low">快速</option><option value="medium">标准</option><option value="high">精细</option></select></label><AssetMentionField label="补充要求" value={requirements} onChange={setRequirements} items={mentionableAssets} metadataFor={metadataFor} onMention={(path) => setReferences((current) => [...new Set([...current.filter((item) => item !== selectedAsset), path])])} placeholder="角色、场景、构图、氛围、配色；输入 @ 可精准引用图片" multiline /></div></details>
         <CodexRunView run={codexRun} />
+        <div className="asset-generate-footer">{creationSource === 'edit' && activeMetadata?.assetCode && <small>将基于 @{activeMetadata.assetCode} 生成新版本</small>}<button className="primary" onClick={() => runImage()} disabled={working || assetCompleted || !title || !message || (creationSource === 'edit' && !selectedAsset) || (creationSource === 'series' && !seriesName.trim()) || (executionMode === 'api' && imageConfigured !== true)} type="button">{working ? '正在生成…' : '生成图片'}</button></div>
       </section>
-      <aside className="box generation-result">
-        <BoxHeader title={assetCompleted ? '已采用版本' : '当前结果'} />
-        {working && <div className="generation-status"><strong>正在生成图片</strong><span>使用 {executionMode === 'api' ? imageModel : 'Codex ImageGen'} · {references.length} 张参考</span><p>复杂图片可能需要约 2 分钟，完成后会自动显示。</p></div>}
+      <aside className={`box generation-result ${!activeAsset && !working && !generationFailure ? 'empty-result' : ''}`}>
+        <BoxHeader title={assetCompleted ? '已采用版本' : '当前结果'} action={assetCompleted ? <button className="link-button" onClick={() => setDepositOpen(true)} type="button">沉淀视觉经验</button> : undefined} />
+        {working && <div className="generation-status"><strong>正在生成图片</strong><span>使用 {executionMode === 'api' ? imageModel : 'Codex ImageGen'} · {resolvedReferences(adjustment).length} 张参考</span><p>复杂图片可能需要约 2 分钟，完成后会自动显示。</p></div>}
         {generationFailure && <div className="generation-failure"><div><strong>生成未完成</strong><button onClick={() => { setGenerationFailure(null); localStorage.removeItem('lumiterra-asset-generation-failure'); }} type="button">清除</button></div><p>{generationFailure.message}</p>{(generationFailure.code || generationFailure.requestId) && <span>{generationFailure.code ? `错误码：${generationFailure.code}` : ''}{generationFailure.code && generationFailure.requestId ? ' · ' : ''}{generationFailure.requestId ? `请求编号：${generationFailure.requestId}` : ''}</span>}</div>}
         {activeAsset && ['png', 'jpg', 'jpeg', 'webp'].includes(activeAsset.kind) ? <>
           <div className="generated-preview"><Image src={`/api/file?path=${encodeURIComponent(activeAsset.path)}`} alt={activeMetadata?.title ?? displayName(activeAsset)} width={900} height={900} unoptimized /></div>
-          <div className="result-meta"><div><strong>{activeMetadata?.title ?? displayName(activeAsset)}</strong><span>{activeMetadata?.seriesName ? `${activeMetadata.seriesName} · ` : ''}{activeMetadata?.generator === 'api' ? activeMetadata.apiResponseId ? 'OpenAI API 多轮' : 'OpenAI API' : 'Codex ImageGen'}{activeMetadata?.version ? ` · V${activeMetadata.version}` : ''}</span></div><span className={`status-badge ${activeMetadata?.status === 'adopted' ? 'adopted' : ''}`}>{activeMetadata?.status === 'adopted' ? '已采用' : '草稿'}</span></div>
+          <div className="result-meta"><div><strong>{activeMetadata?.assetCode ? `@${activeMetadata.assetCode} · ` : ''}{activeMetadata?.title ?? displayName(activeAsset)}</strong><span>{activeMetadata?.seriesName ? `${activeMetadata.seriesName} · ` : ''}{activeMetadata?.generator === 'api' ? activeMetadata.apiResponseId ? 'OpenAI API 多轮' : 'OpenAI API' : 'Codex ImageGen'}{activeMetadata?.version ? ` · V${activeMetadata.version}` : ''}</span></div><span className={`status-badge ${activeMetadata?.status === 'adopted' ? 'adopted' : ''}`}>{activeMetadata?.status === 'adopted' ? '已采用' : '草稿'}</span></div>
           {activeVersions.length > 1 && <section className="current-version-section"><div><strong>版本记录</strong><span>{activeVersions.length} 个版本 · 点击查看</span></div><div className="current-version-strip">{activeVersions.map((file) => { const metadata = metadataFor(file.path); return <button className={file.path === activeAsset.path ? 'active' : ''} onClick={() => selectVersion(file)} aria-current={file.path === activeAsset.path ? 'true' : undefined} title={`查看 V${metadata?.version ?? 1}`} type="button" key={file.path}><Image src={`/api/file?path=${encodeURIComponent(file.path)}`} alt={`${metadata?.title ?? displayName(file)} V${metadata?.version ?? 1}`} width={180} height={120} unoptimized /><span>V{metadata?.version ?? 1}</span><small>{metadata?.generator === 'api' ? 'API' : 'Codex'}</small></button>; })}</div></section>}
 
-          {assetCompleted ? <div className="asset-complete-state"><div><span>已采用 · 已进入生成作品</span><strong>这个版本已退出当前制作状态</strong></div><div><button onClick={() => { continueWith(activeAsset); setAssetIterationOpen(true); }} type="button">基于此图继续迭代</button><button className="primary" onClick={startNewCreation} type="button">开始新图片</button></div></div> : <div className="creation-conversation asset-conversation"><div className="conversation-head"><strong>继续调整当前版本</strong><span>{assetTurns.length} 轮{activeMetadata?.conversationSummary ? ' · 已整理前序要求' : ''}</span></div>{assetTurns.length > 0 && <details className="conversation-history-details"><summary>查看最近 {Math.min(4, assetTurns.length)} 轮调整</summary><div className="conversation-turns">{assetTurns.slice(-4).map((turn, index) => <div key={turn.id}><span>{turn.provider === 'api' ? 'API' : 'Codex'} · {Math.max(1, assetTurns.length - Math.min(4, assetTurns.length) + index + 1)}</span><p>{turn.instruction}</p></div>)}</div></details>}<div className="iteration-box"><label>本轮调整（可选）<input value={adjustment} onChange={(event) => setAdjustment(event.target.value)} placeholder="不填写则按当前要求再生成一版" onKeyDown={(event) => { if (event.key === 'Enter' && !working) void runImage(adjustment); }} /></label><button className="primary" onClick={() => runImage(adjustment)} disabled={working || (executionMode === 'api' && imageConfigured !== true)} type="button">{adjustment.trim() ? '继续修改' : '再生成一版'}</button></div></div>}
+          {assetCompleted ? <div className="asset-complete-state"><div><span>已采用 · 已进入我的作品</span><strong>这个版本已退出当前创作状态</strong></div><div><button onClick={() => { continueWith(activeAsset); setAssetIterationOpen(true); }} type="button">基于此图继续修改</button><button className="primary" onClick={startNewCreation} type="button">开始新图片</button></div></div> : <div className="creation-conversation asset-conversation"><div className="conversation-head"><strong>继续调整当前版本</strong><span>{assetTurns.length} 轮{activeMetadata?.conversationSummary ? ' · 已整理前序要求' : ''}</span></div>{assetTurns.length > 0 && <details className="conversation-history-details"><summary>查看最近 {Math.min(4, assetTurns.length)} 轮调整</summary><div className="conversation-turns">{assetTurns.slice(-4).map((turn, index) => <div key={turn.id}><span>{turn.provider === 'api' ? 'API' : 'Codex'} · {Math.max(1, assetTurns.length - Math.min(4, assetTurns.length) + index + 1)}</span><p>{turn.instruction}</p></div>)}</div></details>}<div className="iteration-box"><AssetMentionField label="本轮调整（可选）" value={adjustment} onChange={setAdjustment} items={mentionableAssets} metadataFor={metadataFor} onMention={(path) => setReferences((current) => [...new Set([...current.filter((item) => item !== selectedAsset), path])])} placeholder="说明如何修改；输入 @ 可引用其他图片" /><button className="primary" onClick={() => runImage(adjustment)} disabled={working || (executionMode === 'api' && imageConfigured !== true)} type="button">{adjustment.trim() ? '继续修改' : '再生成一版'}</button></div></div>}
 
-          <div className="result-actions">{activeMetadata?.status !== 'adopted' && <button className="primary" onClick={adoptCurrentAsset} type="button">采用此版本</button>}<a href={`/api/file?path=${encodeURIComponent(activeAsset.path)}`} download>下载</a><button onClick={() => updateMetadata(activeAsset.path, { visualReference: !activeMetadata?.visualReference })} type="button">{activeMetadata?.visualReference ? '取消参考标记' : '加入参考素材'}</button></div>
+          <div className="result-actions">{activeMetadata?.status !== 'adopted' && <button className="primary" onClick={adoptCurrentAsset} type="button">采用此版本</button>}<a href={`/api/file?path=${encodeURIComponent(activeAsset.path)}`} download>下载</a><button onClick={() => updateMetadata(activeAsset.path, { visualReference: !activeMetadata?.visualReference })} type="button">{activeMetadata?.visualReference ? '移出素材库' : '加入素材库'}</button></div>
         </> : !working && !generationFailure ? <Empty text="生成完成后，图片会显示在这里。" /> : null}
       </aside>
     </div>}
 
     {mode === 'references' && <section className="box asset-library compact-library">
-      <BoxHeader title="参考素材" action={<label className="inline-upload">批量上传<input type="file" accept="image/*,video/mp4,video/webm,video/quicktime" onChange={upload} multiple hidden /></label>} />
+      <BoxHeader title="素材库" action={<label className="inline-upload">批量上传<input type="file" accept="image/*,video/mp4,video/webm,video/quicktime" onChange={upload} multiple hidden /></label>} />
       <div className="asset-filters">{(['全部', '未分类', '角色', '场景', 'Gameplay', 'Logo', '风格', 'UI'] as const).map((role) => <button className={referenceFilter === role ? 'active' : ''} onClick={() => setReferenceFilter(role)} key={role} type="button">{role}</button>)}</div>
-      {filteredReferences.length ? <div className="asset-grid">{filteredReferences.map((file) => <ReferenceAssetCard file={file} metadata={metadataFor(file.path)} onSelect={() => setDetailAssetPath(file.path)} onDefault={() => updateMetadata(file.path, { defaultReference: !metadataFor(file.path)?.defaultReference })} key={file.path} />)}</div> : <Empty text="暂无这一类参考素材" />}
+      {filteredReferences.length ? <div className="asset-grid">{filteredReferences.map((file) => <ReferenceAssetCard file={file} metadata={metadataFor(file.path)} onSelect={() => setDetailAssetPath(file.path)} onDefault={() => updateMetadata(file.path, { defaultReference: !metadataFor(file.path)?.defaultReference })} key={file.path} />)}</div> : <Empty text="暂无这一类素材" />}
     </section>}
 
     {mode === 'works' && <section className="box asset-library compact-library">
-      <BoxHeader title="生成作品" action={<button className="library-create" onClick={() => setMode('create')} type="button">制作图片</button>} />
+      <BoxHeader title="我的作品" action={<button className="library-create" onClick={() => setMode('create')} type="button">开始创作</button>} />
       <div className="asset-filters">{([['all', '全部'], ['draft', '草稿'], ['adopted', '已采用']] as const).map(([key, label]) => <button className={workFilter === key ? 'active' : ''} onClick={() => setWorkFilter(key)} key={key} type="button">{label}</button>)}</div>
-      {workGroups.length ? <div className="asset-grid">{workGroups.map((files) => <GeneratedWorkCard file={files[0]} metadata={metadataFor(files[0].path)} versions={files.length} onSelect={() => setDetailAssetPath(files[0].path)} key={metadataFor(files[0].path)?.groupId ?? files[0].path} />)}</div> : <Empty text="暂无生成作品" />}
+      {workGroups.length ? <div className="asset-grid">{workGroups.map((files) => <GeneratedWorkCard file={files[0]} metadata={metadataFor(files[0].path)} versions={files.length} onSelect={() => setDetailAssetPath(files[0].path)} key={metadataFor(files[0].path)?.groupId ?? files[0].path} />)}</div> : <Empty text="还没有作品" />}
     </section>}
 
-    {referencePickerOpen && <div className="drawer-backdrop" onMouseDown={() => setReferencePickerOpen(false)}><aside className="asset-picker-drawer" onMouseDown={(event) => event.stopPropagation()}><div className="drawer-header"><h2>选择参考图片</h2><button onClick={() => setReferencePickerOpen(false)} type="button">完成 · {references.length}</button></div><div className="picker-upload"><label className="upload-button">批量上传<input type="file" accept="image/png,image/jpeg,image/webp" onChange={upload} multiple hidden /></label><span>可多选，已选 {references.length} 张</span></div><div className="picker-grid">{referenceAssets.filter((file) => ['png', 'jpg', 'jpeg', 'webp'].includes(file.kind)).map((file) => <button className={references.includes(file.path) ? 'active' : ''} onClick={() => toggleReference(file.path)} key={file.path} type="button"><Image src={`/api/file?path=${encodeURIComponent(file.path)}`} alt={metadataFor(file.path)?.title ?? displayName(file)} width={260} height={190} unoptimized /><span>{references.includes(file.path) ? '已选择' : metadataFor(file.path)?.title ?? displayName(file)}</span></button>)}</div></aside></div>}
+    {referencePickerOpen && <div className="drawer-backdrop" onMouseDown={() => setReferencePickerOpen(false)}><aside className="asset-picker-drawer" onMouseDown={(event) => event.stopPropagation()}><div className="drawer-header"><h2>选择参考图片</h2><button onClick={() => setReferencePickerOpen(false)} type="button">完成 · {references.length}</button></div><div className="picker-upload"><label className="upload-button">批量上传<input type="file" accept="image/png,image/jpeg,image/webp" onChange={upload} multiple hidden /></label><span>可多选；参考图不会替代修改对象</span></div><div className="picker-grid">{referenceAssets.filter((file) => ['png', 'jpg', 'jpeg', 'webp'].includes(file.kind)).map((file) => { const metadata = metadataFor(file.path); return <button className={references.includes(file.path) ? 'active' : ''} onClick={() => toggleReference(file.path)} key={file.path} type="button"><Image src={`/api/file?path=${encodeURIComponent(file.path)}`} alt={metadata?.title ?? displayName(file)} width={260} height={190} unoptimized /><span><b>@{metadata?.assetCode}</b>{metadata?.title ?? displayName(file)}{references.includes(file.path) ? ' · 已选择' : ''}</span></button>; })}</div></aside></div>}
 
-    {detailAsset && detailMetadata && <div className="drawer-backdrop" onMouseDown={() => setDetailAssetPath('')}><aside className="asset-detail-drawer" onMouseDown={(event) => event.stopPropagation()}><div className="drawer-header"><h2>{detailMetadata.source === 'generated' ? '生成作品' : '参考素材'}</h2><button onClick={() => setDetailAssetPath('')} type="button">关闭</button></div><div className="detail-media">{['png', 'jpg', 'jpeg', 'webp', 'gif'].includes(detailAsset.kind) ? <Image src={`/api/file?path=${encodeURIComponent(detailAsset.path)}`} alt={detailMetadata.title} width={1000} height={800} unoptimized /> : <video src={`/api/file?path=${encodeURIComponent(detailAsset.path)}`} controls />}</div><div className="detail-content"><div className="detail-title"><div><strong>{detailMetadata.source === 'generated' ? '生成作品' : '参考素材'} · {detailMetadata.title}</strong><span>{detailMetadata.source === 'generated' ? `${detailMetadata.generator === 'api' ? 'OpenAI API' : 'Codex ImageGen'} · V${detailMetadata.version ?? 1}` : `本地上传 · ${detailMetadata.role ?? '未分类'}`}</span></div>{detailMetadata.source === 'generated' && <span className={`status-badge ${detailMetadata.status === 'adopted' ? 'adopted' : ''}`}>{detailMetadata.status === 'adopted' ? '已采用' : '草稿'}</span>}</div>{detailMetadata.source === 'upload' && <label className="detail-select">分类<select value={detailMetadata.role ?? '未分类'} onChange={(event) => updateMetadata(detailAsset.path, { role: event.target.value as AssetRole })}>{(['未分类', '角色', '场景', 'Gameplay', 'Logo', '风格', 'UI'] as const).map((role) => <option key={role}>{role}</option>)}</select></label>}<div className="detail-actions">{['png', 'jpg', 'jpeg', 'webp'].includes(detailAsset.kind) && <button onClick={() => continueWith(detailAsset)} type="button">用于图片制作</button>}{detailMetadata.source === 'generated' && <button onClick={() => updateMetadata(detailAsset.path, { status: detailMetadata.status === 'adopted' ? 'draft' : 'adopted' })} type="button">{detailMetadata.status === 'adopted' ? '改为草稿' : '标记已采用'}</button>}<button onClick={() => updateMetadata(detailAsset.path, { visualReference: !detailMetadata.visualReference })} type="button">{detailMetadata.visualReference ? '取消参考标记' : '加入参考素材'}</button><a href={`/api/file?path=${encodeURIComponent(detailAsset.path)}`} download>下载</a></div>{detailVersions.length > 1 && <section className="version-section"><h3>版本</h3><div>{detailVersions.map((file) => <button className={file.path === detailAsset.path ? 'active' : ''} onClick={() => setDetailAssetPath(file.path)} key={file.path} type="button"><Image src={`/api/file?path=${encodeURIComponent(file.path)}`} alt={metadataFor(file.path)?.title ?? displayName(file)} width={180} height={120} unoptimized /><span>V{metadataFor(file.path)?.version ?? 1}</span></button>)}</div></section>}{detailMetadata.prompt && <section className="detail-section"><h3>创作要求</h3><p>{detailMetadata.prompt}</p></section>}{linkedBrief?.content && <section className="detail-section"><h3>创作说明</h3><MarkdownView content={stripTitle(linkedBrief.content)} /></section>}{linkedRecord?.content && <section className="detail-section"><h3>执行记录</h3><MarkdownView content={stripTitle(linkedRecord.content)} /></section>}</div></aside></div>}
+    {targetPickerOpen && <div className="drawer-backdrop" onMouseDown={() => setTargetPickerOpen(false)}><aside className="asset-picker-drawer" onMouseDown={(event) => event.stopPropagation()}><div className="drawer-header"><div><h2>选择要修改的图片</h2><p>只能选择一张，它将成为本次唯一修改对象。</p></div><button onClick={() => setTargetPickerOpen(false)} type="button">关闭</button></div><div className="picker-grid">{imageAssets.map((file) => { const metadata = metadataFor(file.path); return <button className={selectedAsset === file.path ? 'active' : ''} onClick={() => chooseEditTarget(file)} key={file.path} type="button"><Image src={`/api/file?path=${encodeURIComponent(file.path)}`} alt={metadata?.title ?? displayName(file)} width={260} height={190} unoptimized /><span><b>@{metadata?.assetCode}</b>{metadata?.title ?? displayName(file)}{metadata?.version ? ` · V${metadata.version}` : ''}</span></button>; })}</div></aside></div>}
+
+    {detailAsset && detailMetadata && <div className="drawer-backdrop" onMouseDown={() => setDetailAssetPath('')}><aside className="asset-detail-drawer" onMouseDown={(event) => event.stopPropagation()}><div className="drawer-header"><h2>{detailMetadata.source === 'generated' ? '作品详情' : '素材详情'}</h2><button onClick={() => setDetailAssetPath('')} type="button">关闭</button></div><div className="detail-media">{['png', 'jpg', 'jpeg', 'webp', 'gif'].includes(detailAsset.kind) ? <Image src={`/api/file?path=${encodeURIComponent(detailAsset.path)}`} alt={detailMetadata.title} width={1000} height={800} unoptimized /> : <video src={`/api/file?path=${encodeURIComponent(detailAsset.path)}`} controls />}</div><div className="detail-content"><div className="detail-title"><div><strong>{detailMetadata.assetCode ? `@${detailMetadata.assetCode} · ` : ''}{detailMetadata.title}</strong><span>{detailMetadata.source === 'generated' ? `${detailMetadata.generator === 'api' ? 'OpenAI API' : 'Codex ImageGen'} · V${detailMetadata.version ?? 1}` : `本地上传 · ${detailMetadata.role ?? '未分类'}`}</span></div>{detailMetadata.source === 'generated' && <span className={`status-badge ${detailMetadata.status === 'adopted' ? 'adopted' : ''}`}>{detailMetadata.status === 'adopted' ? '已采用' : '草稿'}</span>}</div>{detailMetadata.source === 'upload' && <label className="detail-select">分类<select value={detailMetadata.role ?? '未分类'} onChange={(event) => updateMetadata(detailAsset.path, { role: event.target.value as AssetRole })}>{(['未分类', '角色', '场景', 'Gameplay', 'Logo', '风格', 'UI'] as const).map((role) => <option key={role}>{role}</option>)}</select></label>}<div className="detail-actions">{['png', 'jpg', 'jpeg', 'webp'].includes(detailAsset.kind) && <button onClick={() => continueWith(detailAsset)} type="button">修改这张图片</button>}<button onClick={() => renameAsset(detailAsset, detailMetadata)} type="button">重命名</button>{detailMetadata.assetCode && <button onClick={() => copyAssetMention(detailMetadata)} type="button">复制 @{detailMetadata.assetCode}</button>}{detailMetadata.source === 'generated' && <button onClick={() => updateMetadata(detailAsset.path, { status: detailMetadata.status === 'adopted' ? 'draft' : 'adopted' })} type="button">{detailMetadata.status === 'adopted' ? '改为草稿' : '标记已采用'}</button>}<button onClick={() => updateMetadata(detailAsset.path, { visualReference: !detailMetadata.visualReference })} type="button">{detailMetadata.visualReference ? '取消参考标记' : '加入素材库'}</button><a href={`/api/file?path=${encodeURIComponent(detailAsset.path)}`} download>下载</a></div>{detailVersions.length > 1 && <section className="version-section"><h3>版本</h3><div>{detailVersions.map((file) => <button className={file.path === detailAsset.path ? 'active' : ''} onClick={() => setDetailAssetPath(file.path)} key={file.path} type="button"><Image src={`/api/file?path=${encodeURIComponent(file.path)}`} alt={metadataFor(file.path)?.title ?? displayName(file)} width={180} height={120} unoptimized /><span>V{metadataFor(file.path)?.version ?? 1}</span></button>)}</div></section>}{detailMetadata.prompt && <section className="detail-section"><h3>创作要求</h3><p>{detailMetadata.prompt}</p></section>}{linkedBrief?.content && <section className="detail-section"><h3>创作说明</h3><MarkdownView content={stripTitle(linkedBrief.content)} /></section>}{linkedRecord?.content && <section className="detail-section"><h3>执行记录</h3><MarkdownView content={stripTitle(linkedRecord.content)} /></section>}</div></aside></div>}
+    {depositOpen && activeAsset && activeMetadata && <KnowledgeDepositModal workspace={workspace} input={{ origin: 'asset', title: `${activeMetadata.title} · 视觉经验`, content: `已采用版本：${activeMetadata.path}\n\n创作要求：\n${activeMetadata.prompt ?? message}\n\n可复用视觉规则：\n${activeMetadata.seriesRules ?? ''}`, targetPath: activeAsset.path, topicPath: knowledgePaths.find((path) => workspace.knowledgeMetadata.find((item) => item.path === path)?.type === 'topic') }} onClose={() => setDepositOpen(false)} refresh={refresh} setNotice={setNotice} />}
   </div>;
 }
 
 function ReferenceAssetCard({ file, metadata, onSelect, onDefault }: { file: WorkFile; metadata?: AssetMetadata; onSelect: () => void; onDefault: () => void }) {
   const isImage = ['png', 'jpg', 'jpeg', 'webp', 'gif'].includes(file.kind);
   const src = `/api/file?path=${encodeURIComponent(file.path)}`;
-  return <article className="asset-card" onClick={onSelect} onKeyDown={(event) => { if (event.key === 'Enter') onSelect(); }} role="button" tabIndex={0}><div className="asset-preview">{isImage ? <Image src={src} alt={metadata?.title ?? displayName(file)} width={640} height={480} unoptimized /> : <video src={src} />}</div><div><span>{metadata?.defaultReference ? '默认参考' : metadata?.source === 'generated' ? '作品引用' : `上传参考 · ${metadata?.role ?? '未分类'}`}</span><strong>{metadata?.title ?? displayName(file)}</strong><div className="reference-card-foot"><small>{formatTime(file.updatedAt)}</small>{isImage && <button onClick={(event) => { event.stopPropagation(); onDefault(); }} type="button">{metadata?.defaultReference ? '取消默认' : '设为默认'}</button>}</div></div></article>;
+  return <article className="asset-card" onClick={onSelect} onKeyDown={(event) => { if (event.key === 'Enter') onSelect(); }} role="button" tabIndex={0}><div className="asset-preview">{isImage ? <Image src={src} alt={metadata?.title ?? displayName(file)} width={640} height={480} unoptimized /> : <video src={src} />}</div><div><span>{metadata?.defaultReference ? '默认参考' : metadata?.source === 'generated' ? '作品引用' : `上传素材 · ${metadata?.role ?? '未分类'}`}</span><strong>{metadata?.assetCode ? `@${metadata.assetCode} · ` : ''}{metadata?.title ?? displayName(file)}</strong><div className="reference-card-foot"><small>{formatTime(file.updatedAt)}</small>{isImage && <button onClick={(event) => { event.stopPropagation(); onDefault(); }} type="button">{metadata?.defaultReference ? '取消默认' : '设为默认'}</button>}</div></div></article>;
 }
 
 function GeneratedWorkCard({ file, metadata, versions, onSelect }: { file: WorkFile; metadata?: AssetMetadata; versions: number; onSelect: () => void }) {
-  return <article className="asset-card generated-card" onClick={onSelect} onKeyDown={(event) => { if (event.key === 'Enter') onSelect(); }} role="button" tabIndex={0}><div className="asset-preview"><Image src={`/api/file?path=${encodeURIComponent(file.path)}`} alt={metadata?.title ?? displayName(file)} width={640} height={480} unoptimized /><span className="version-badge">{versions > 1 ? `${versions} 个版本` : `V${metadata?.version ?? 1}`}</span></div><div><span>{metadata?.seriesName ? `${metadata.seriesName} · ` : metadata?.creationSource === 'content' ? '内容配图 · ' : ''}{metadata?.generator === 'api' ? 'OpenAI API' : 'Codex ImageGen'} · {metadata?.status === 'adopted' ? '已采用' : '草稿'}</span><strong>{metadata?.title ?? displayName(file)}</strong><small>{formatTime(file.updatedAt)}</small></div></article>;
+  return <article className="asset-card generated-card" onClick={onSelect} onKeyDown={(event) => { if (event.key === 'Enter') onSelect(); }} role="button" tabIndex={0}><div className="asset-preview"><Image src={`/api/file?path=${encodeURIComponent(file.path)}`} alt={metadata?.title ?? displayName(file)} width={640} height={480} unoptimized /><span className="version-badge">{versions > 1 ? `${versions} 个版本` : `V${metadata?.version ?? 1}`}</span></div><div><span>{metadata?.seriesName ? `${metadata.seriesName} · ` : metadata?.creationSource === 'content' ? '内容配图 · ' : metadata?.creationSource === 'edit' ? '图片修改 · ' : ''}{metadata?.generator === 'api' ? 'OpenAI API' : 'Codex ImageGen'} · {metadata?.status === 'adopted' ? '已采用' : '草稿'}</span><strong>{metadata?.assetCode ? `@${metadata.assetCode} · ` : ''}{metadata?.title ?? displayName(file)}</strong><small>{formatTime(file.updatedAt)}</small></div></article>;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- retained temporarily to preserve the previous local UI during the workspace migration.
@@ -1705,14 +1899,14 @@ function MarketingBoard({ workspace, refresh, setNotice, setView }: { workspace:
   }
 
   return <div className="page marketing-page">
-    <SectionTitle title="Marketing" action={<div className="marketing-title-actions"><button onClick={() => setEditor(newEditor('todo'))} type="button">新建 Todo</button><button className="primary" onClick={() => setEditor(newEditor('timeline'))} type="button">新建 Timeline</button></div>} />
-    <div className="marketing-intro"><div><strong>把阶段计划和执行事项放在一起</strong><span>推文与素材只在需要时关联，不会被自动归集。</span></div><div><span>{timeline.filter((item) => item.status !== 'done').length} 个进行中计划</span><span>{todos.filter((item) => item.status !== 'done').length} 项待完成</span></div></div>
+    <SectionTitle title="Marketing" />
+    <div className="marketing-intro"><span>推文与素材只在需要时关联，不会自动归集。</span><div><span>{timeline.filter((item) => item.status !== 'done').length} 个进行中计划</span><span>{todos.filter((item) => item.status !== 'done').length} 项待完成</span></div></div>
     <div className="marketing-board-grid">
       <section className="box marketing-column"><BoxHeader title="Timeline" action={<button onClick={() => setEditor(newEditor('timeline'))} type="button">＋ 添加计划</button>} />
-        {timeline.length === 0 ? <div className="marketing-empty"><strong>还没有运营计划</strong><p>先记录一个阶段、Campaign 或重要发布时间段。</p><button onClick={() => setEditor(newEditor('timeline'))} type="button">添加第一项</button></div> : <div className="timeline-list">{timeline.map((item) => <button className="marketing-row" onClick={() => setSelected({ kind: 'timeline', id: item.id })} type="button" key={item.id}><span className="timeline-date"><b>{item.startDate.slice(5).replace('-', '/')}</b>{item.endDate && <small>— {item.endDate.slice(5).replace('-', '/')}</small>}</span><span className="marketing-row-main"><strong>{item.title}</strong><small>{item.tags.slice(0, 3).map((tag) => `#${tag}`).join('  ') || '未设置标签'}</small></span><span className={`marketing-status ${item.status}`}>{marketingStatusLabel('timeline', item.status)}</span><span className="marketing-link-count">{item.contentPaths.length + item.assetPaths.length ? `关联 ${item.contentPaths.length + item.assetPaths.length}` : '未关联'}</span></button>)}</div>}
+        {timeline.length === 0 ? <div className="marketing-empty"><strong>还没有运营计划</strong><p>用右上角“添加计划”记录阶段、Campaign 或重要发布时间段。</p></div> : <div className="timeline-list">{timeline.map((item) => <button className="marketing-row" onClick={() => setSelected({ kind: 'timeline', id: item.id })} type="button" key={item.id}><span className="timeline-date"><b>{item.startDate.slice(5).replace('-', '/')}</b>{item.endDate && <small>— {item.endDate.slice(5).replace('-', '/')}</small>}</span><span className="marketing-row-main"><strong>{item.title}</strong>{item.tags.length > 0 && <small>{item.tags.slice(0, 3).map((tag) => `#${tag}`).join('  ')}</small>}</span><span className={`marketing-status ${item.status}`}>{marketingStatusLabel('timeline', item.status)}</span><span className="marketing-link-count">{item.contentPaths.length + item.assetPaths.length ? `关联 ${item.contentPaths.length + item.assetPaths.length}` : '未关联'}</span></button>)}</div>}
       </section>
       <section className="box marketing-column"><BoxHeader title="Todo" action={<button onClick={() => setEditor(newEditor('todo'))} type="button">＋ 添加任务</button>} />
-        {todos.length === 0 ? <div className="marketing-empty"><strong>还没有待办</strong><p>Todo 可以独立存在，也可以归入某个 Timeline。</p><button onClick={() => setEditor(newEditor('todo'))} type="button">添加第一项</button></div> : <div className="todo-list">{todos.map((item) => <div className={`todo-row ${item.status}`} key={item.id}><button className="todo-check" aria-label="更新完成状态" onClick={() => updateTodoStatus(item, item.status === 'done' ? 'todo' : 'done')} type="button">{item.status === 'done' ? '✓' : ''}</button><button className="todo-main" onClick={() => setSelected({ kind: 'todo', id: item.id })} type="button"><strong>{item.title}</strong><small>{item.timelineId ? timeline.find((entry) => entry.id === item.timelineId)?.title || '未规划' : '独立任务'}{item.dueDate ? ` · ${item.dueDate.slice(5).replace('-', '/')}` : ''}</small></button>{item.status !== 'done' && <button className="todo-state" onClick={() => updateTodoStatus(item, item.status === 'todo' ? 'doing' : 'todo')} type="button">{marketingStatusLabel('todo', item.status)}</button>}</div>)}</div>}
+        {todos.length === 0 ? <div className="marketing-empty"><strong>还没有待办</strong><p>用右上角“添加任务”创建独立任务，或归入某个计划。</p></div> : <div className="todo-list">{todos.map((item) => <div className={`todo-row ${item.status}`} key={item.id}><button className="todo-check" aria-label="更新完成状态" onClick={() => updateTodoStatus(item, item.status === 'done' ? 'todo' : 'done')} type="button">{item.status === 'done' ? '✓' : ''}</button><button className="todo-main" onClick={() => setSelected({ kind: 'todo', id: item.id })} type="button"><strong>{item.title}</strong><small>{item.timelineId ? timeline.find((entry) => entry.id === item.timelineId)?.title || '未规划' : '独立任务'}{item.dueDate ? ` · ${item.dueDate.slice(5).replace('-', '/')}` : ''}</small></button>{item.status !== 'done' && <button className="todo-state" onClick={() => updateTodoStatus(item, item.status === 'todo' ? 'doing' : 'todo')} type="button">{marketingStatusLabel('todo', item.status)}</button>}</div>)}</div>}
       </section>
     </div>
 
@@ -1731,7 +1925,7 @@ function MarketingBoard({ workspace, refresh, setNotice, setView }: { workspace:
       {editor.kind === 'timeline' ? <><label>开始日期<input type="date" value={editor.startDate} onChange={(event) => setEditor({ ...editor, startDate: event.target.value })} /></label><label>结束日期（可选）<input type="date" min={editor.startDate} value={editor.endDate} onChange={(event) => setEditor({ ...editor, endDate: event.target.value })} /></label><label>状态<select value={editor.status} onChange={(event) => setEditor({ ...editor, status: event.target.value })}><option value="planned">计划中</option><option value="active">进行中</option><option value="done">已结束</option></select></label><label>标签（可选）<input value={editor.tags} onChange={(event) => setEditor({ ...editor, tags: event.target.value })} placeholder="预热, Twitter" /></label></> : <><label>截止日期（可选）<input type="date" value={editor.dueDate} onChange={(event) => setEditor({ ...editor, dueDate: event.target.value })} /></label><label>状态<select value={editor.status} onChange={(event) => setEditor({ ...editor, status: event.target.value })}><option value="todo">待做</option><option value="doing">进行中</option><option value="done">已完成</option></select></label><label className="marketing-wide">归入 Timeline（可选）<select value={editor.timelineId} onChange={(event) => setEditor({ ...editor, timelineId: event.target.value })}><option value="">不归入计划，作为独立任务</option>{timeline.map((item) => <option value={item.id} key={item.id}>{item.title}</option>)}</select></label></>}
       <label className="marketing-wide">备注（可选）<textarea value={editor.notes} onChange={(event) => setEditor({ ...editor, notes: event.target.value })} placeholder="记录目标、要求或协作信息…" /></label>
       <details className="marketing-link-picker marketing-wide"><summary><span><strong>关联已有推文</strong><small>可选 · 已选 {editor.contentPaths.length}</small></span><b>选择</b></summary><div>{contentFiles.length ? contentFiles.map((file) => <label key={file.path}><input type="checkbox" checked={editor.contentPaths.includes(file.path)} onChange={() => togglePath('contentPaths', file.path)} /><span><strong>{contentPreview(file.content)}</strong><small>{formatTime(file.updatedAt)}</small></span></label>) : <p>内容创作中还没有可关联的记录。</p>}</div></details>
-      <details className="marketing-link-picker marketing-wide"><summary><span><strong>关联已有素材</strong><small>可选 · 已选 {editor.assetPaths.length}</small></span><b>选择</b></summary><div>{assetFiles.length ? assetFiles.map((file) => <label key={file.path}><input type="checkbox" checked={editor.assetPaths.includes(file.path)} onChange={() => togglePath('assetPaths', file.path)} /><span><strong>{displayName(file)}</strong><small>{formatTime(file.updatedAt)}</small></span></label>) : <p>素材工作室中还没有可关联的记录。</p>}</div></details>
+      <details className="marketing-link-picker marketing-wide"><summary><span><strong>关联已有素材</strong><small>可选 · 已选 {editor.assetPaths.length}</small></span><b>选择</b></summary><div>{assetFiles.length ? assetFiles.map((file) => <label key={file.path}><input type="checkbox" checked={editor.assetPaths.includes(file.path)} onChange={() => togglePath('assetPaths', file.path)} /><span><strong>{displayName(file)}</strong><small>{formatTime(file.updatedAt)}</small></span></label>) : <p>视觉创作中还没有可关联的记录。</p>}</div></details>
     </div><footer><span>关联只建立引用，不会移动或修改原内容。</span><div><button onClick={() => setEditor(null)} disabled={saving} type="button">取消</button><button className="primary" onClick={saveItem} disabled={saving || !editor.title.trim()} type="button">{saving ? '保存中…' : '保存'}</button></div></footer></section></div>}
   </div>;
 }
@@ -1752,6 +1946,7 @@ function knowledgeTypeLabel(type: KnowledgeItemType) {
 function KnowledgeBase({ workspace, refresh, setNotice }: { workspace: Workspace; refresh: (silent?: boolean) => Promise<void>; setNotice: (notice: Notice) => void }) {
   const [filter, setFilter] = useState<KnowledgeFilter>('all');
   const [captureOpen, setCaptureOpen] = useState(false);
+  const [topicCreateOpen, setTopicCreateOpen] = useState(false);
   const [conversationPaths, setConversationPaths] = useState<string[]>([]);
   const [search, setSearch] = useState('');
   const [selectedPath, setSelectedPath] = useState(() => workspace.knowledgeMetadata.find((item) => item.type === 'topic' && item.status !== 'archived')?.path ?? workspace.knowledgeMetadata.find((item) => item.status !== 'archived')?.path ?? '');
@@ -1769,6 +1964,8 @@ function KnowledgeBase({ workspace, refresh, setNotice }: { workspace: Workspace
   });
   const activeMetadata = workspace.knowledgeMetadata.find((item) => item.path === selectedPath);
   const activeFile = workspace.knowledgeFiles.find((file) => file.path === selectedPath);
+  const relatedKnowledgeIds = activeMetadata?.type === 'topic' ? [activeMetadata.id, ...workspace.knowledgeMetadata.filter((item) => item.topicIds.includes(activeMetadata.id)).map((item) => item.id)] : activeMetadata ? [activeMetadata.id] : [];
+  const relatedTargets = [...new Set(workspace.knowledgeUsage.filter((usage) => usage.targetPath && usage.itemVersions.some((item) => relatedKnowledgeIds.includes(item.id))).map((usage) => usage.targetPath as string))];
 
   async function changeStatus(status: KnowledgeStatus) {
     if (!activeMetadata) return;
@@ -1786,7 +1983,7 @@ function KnowledgeBase({ workspace, refresh, setNotice }: { workspace: Workspace
     <section className="knowledge-hero">
       <div><h1>知识库</h1><p>先看主题建立全貌，再看最新结论，需要时直接打开源头资料。</p></div>
       <label className="knowledge-main-search"><span>⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索主题、结论或源头资料" /></label>
-      <button className="primary" onClick={() => { setConversationPaths([]); setCaptureOpen(true); }} type="button">记一条</button>
+      <div className="knowledge-hero-actions"><button onClick={() => setTopicCreateOpen(true)} type="button">新建主题</button><button className="primary" onClick={() => { setConversationPaths([]); setCaptureOpen(true); }} type="button">记一条</button></div>
     </section>
 
     <div className="knowledge-browse-head">
@@ -1797,7 +1994,7 @@ function KnowledgeBase({ workspace, refresh, setNotice }: { workspace: Workspace
     <div className="knowledge-split-layout">
       <section className="box knowledge-feed">
         <BoxHeader title={query ? '搜索结果' : filter === 'all' ? '知识入口' : KNOWLEDGE_FILTERS.find((item) => item.id === filter)?.label ?? '记录'} />
-        {visibleItems.length === 0 ? <div className="knowledge-friendly-empty"><strong>{query ? '没有找到相关内容' : '这里还没有记录'}</strong><p>{query ? '换一个词试试，标题、正文和标签都可以搜索。' : '主题、结论和源头资料会在这里形成清晰的阅读路径。'}</p>{!query && <button onClick={() => { setConversationPaths([]); setCaptureOpen(true); }} type="button">保存第一份资料</button>}</div> : visibleItems.map((item) => {
+        {visibleItems.length === 0 ? <div className="knowledge-friendly-empty"><strong>{query ? '没有找到相关内容' : '这里还没有记录'}</strong><p>{query ? '换一个词试试，标题、正文和标签都可以搜索。' : '主题、结论和源头资料会在这里形成清晰的阅读路径。'}</p>{!query && <button onClick={() => setTopicCreateOpen(true)} type="button">创建第一个主题</button>}</div> : visibleItems.map((item) => {
           const file = workspace.knowledgeFiles.find((entry) => entry.path === item.path);
           const preview = (stripTitle(file?.content ?? '').split(/\n\s*\n/).map((paragraph) => paragraph.trim()).find((paragraph) => paragraph && !/^(#{1,6}\s|[-*]\s|\|)/.test(paragraph)) ?? '').replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').replace(/[`*_>]/g, '').trim().slice(0, 150);
           return <button className={`knowledge-feed-row ${selectedPath === item.path ? 'active' : ''}`} onClick={() => setSelectedPath(item.path)} type="button" key={item.id}><span className={`knowledge-kind ${item.type}`}>{knowledgeTypeLabel(item.type)}</span><div><strong>{item.title}</strong><p>{preview || '打开查看完整内容'}</p>{item.tags.length > 0 && <small>{item.tags.slice(0, 3).map((tag) => `#${tag}`).join('  ')}</small>}</div></button>;
@@ -1807,10 +2004,12 @@ function KnowledgeBase({ workspace, refresh, setNotice }: { workspace: Workspace
       <div className="knowledge-reader-head"><span>{knowledgeTypeLabel(activeMetadata.type)} · {formatTime(activeMetadata.updatedAt)}</span></div>
       <div className="knowledge-reader-title"><div><h2>{activeMetadata.title}</h2>{activeMetadata.tags.length > 0 && <p>{activeMetadata.tags.map((tag) => `#${tag}`).join('  ')}</p>}</div><div className="knowledge-reader-actions"><button onClick={() => { setConversationPaths([activeMetadata.path]); setCaptureOpen(true); }} type="button">围绕它继续讨论</button>{activeMetadata.sourceUrl && <a href={activeMetadata.sourceUrl} target="_blank" rel="noreferrer">查看原始链接 ↗</a>}</div></div>
       <MarkdownView content={stripTitle(activeFile.content ?? '')} className="knowledge-document" linksNewTab />
+      {relatedTargets.length > 0 && <section className="knowledge-related-work"><div><strong>相关工作</strong><span>这些产出留在原工作区，这里仅建立关联。</span></div>{relatedTargets.map((path) => { const file = workspace.outputs.find((item) => item.path === path); const label = path.startsWith('outputs/twitter/') ? '内容' : path.startsWith('outputs/assets/') ? '素材' : path.startsWith('outputs/documents/') ? '分析' : '工作记录'; return <div key={path}><span>{label}</span><strong>{file ? displayName(file) : path.split('/').at(-1)}</strong><small>{file ? formatTime(file.updatedAt) : ''}</small></div>; })}</section>}
       <details className="knowledge-record-info"><summary>记录信息</summary><p>{activeMetadata.id} · 版本 {activeMetadata.version}</p><button onClick={() => changeStatus('archived')} type="button">归档这条记录</button></details>
     </>}</section>
     </div>
     {captureOpen && <AiWorkspaceModal mode="knowledge" workspace={workspace} initialTitle={activeMetadata && conversationPaths.length ? activeMetadata.title : '知识讨论'} initialKnowledgePaths={conversationPaths} onClose={() => setCaptureOpen(false)} onSaved={(path) => setSelectedPath(path)} refresh={refresh} setNotice={setNotice} />}
+    {topicCreateOpen && <TopicCreateModal onClose={() => setTopicCreateOpen(false)} onCreated={(path) => { setSelectedPath(path); setFilter('topic'); setSearch(''); }} refresh={refresh} setNotice={setNotice} />}
   </div>;
 }
 

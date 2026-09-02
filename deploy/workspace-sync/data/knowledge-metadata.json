@@ -1,0 +1,45 @@
+[
+  {
+    "id": "TOP-20260901-001",
+    "type": "topic",
+    "path": "knowledge/topics/2026-09-01-olympus-ohm-cold-start-fomo-reversal.md",
+    "title": "Olympus DAO / OHM：机制、增长与崩盘快速理解",
+    "status": "active",
+    "createdAt": "2026-09-01T04:01:53.589Z",
+    "updatedAt": "2026-09-01T08:35:00.000Z",
+    "version": 3,
+    "contentHash": "0bfdfc9a7bfec515e77fb5007f467bd02b61951f6b30898ce6cba721e0e4779e",
+    "topicIds": [],
+    "tags": ["OlympusDAO", "OHM", "机制", "冷启动", "FOMO", "Marketing", "时间线", "崩盘"],
+    "relatedIds": ["INS-20260901-006", "SRC-20260901-010"]
+  },
+  {
+    "id": "INS-20260901-006",
+    "type": "insight",
+    "path": "knowledge/insights/2026-09-01-ohm-core-conclusions.md",
+    "title": "OHM 核心结论",
+    "status": "reviewed",
+    "createdAt": "2026-09-01T08:30:00.000Z",
+    "updatedAt": "2026-09-01T08:35:00.000Z",
+    "version": 1,
+    "contentHash": "6cd2d834c872887a60b8b7d907df2294802d4022fefd60ad2c7cdb362b309d8a",
+    "topicIds": ["TOP-20260901-001"],
+    "tags": ["OlympusDAO", "OHM", "核心结论", "最新变化", "运营判断", "LumiterraV2"],
+    "relatedIds": ["TOP-20260901-001", "SRC-20260901-010"]
+  },
+  {
+    "id": "SRC-20260901-010",
+    "type": "source",
+    "path": "knowledge/sources/2026-09-01-ohm-source-library.md",
+    "title": "OHM 源头资料",
+    "status": "processed",
+    "createdAt": "2026-09-01T08:30:00.000Z",
+    "updatedAt": "2026-09-01T08:35:00.000Z",
+    "version": 1,
+    "contentHash": "b5d6aa9a392a2b4d3b9c2d1bc479f5008f1a4898725736abd34db1b71495efd5",
+    "topicIds": ["TOP-20260901-001"],
+    "tags": ["OlympusDAO", "OHM", "源头资料", "原始来源", "数据", "时间线", "Marketing", "风险"],
+    "relatedIds": ["TOP-20260901-001", "INS-20260901-006"],
+    "reason": "集中提供 OHM 机制、增长、Marketing、合作与崩盘的源头材料和可点击入口"
+  }
+]

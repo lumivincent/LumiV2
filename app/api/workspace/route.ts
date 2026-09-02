@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createKnowledgeItem, createRecord, createRequest, deleteMarketingItem, getWorkspace, recordKnowledgeUsage, registerGeneratedAsset, saveAssistantSession, saveContent, saveMarketingItem, saveMemory, saveOutput, setAssetReference, syncSources, updateAssetMetadata, updateContentStatus, updateKnowledgeStatus, uploadAsset, type AssistantMessage, type CreationTurn, type KnowledgeItemType, type KnowledgeStatus } from '@/lib/workspace-store';
+import { createKnowledgeItem, createRecord, createRequest, deleteMarketingItem, getWorkspace, recordKnowledgeUsage, registerGeneratedAsset, saveAssistantSession, saveContent, saveMarketingItem, saveMemory, saveOutput, setAssetReference, syncSources, updateAssetMetadata, updateContentStatus, updateKnowledgeItem, updateKnowledgeStatus, uploadAsset, type AssistantMessage, type CreationTurn, type KnowledgeItemType, type KnowledgeStatus } from '@/lib/workspace-store';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -60,6 +60,12 @@ export async function POST(request: NextRequest) {
       const relatedIds = Array.isArray(body.relatedIds) ? body.relatedIds.map(String) : [];
       return NextResponse.json(await createKnowledgeItem({ type, title: body.title ? String(body.title) : undefined, content: String(body.content ?? ''), reason: body.reason ? String(body.reason) : undefined, tags, topicIds, relatedIds }));
     }
+    if (body.action === 'updateKnowledgeItem') {
+      const tags = Array.isArray(body.tags) ? body.tags.map(String) : undefined;
+      const topicIds = Array.isArray(body.topicIds) ? body.topicIds.map(String) : undefined;
+      const relatedIds = Array.isArray(body.relatedIds) ? body.relatedIds.map(String) : undefined;
+      return NextResponse.json(await updateKnowledgeItem({ path: String(body.path ?? ''), title: body.title ? String(body.title) : undefined, content: String(body.content ?? ''), reason: body.reason ? String(body.reason) : undefined, tags, topicIds, relatedIds }));
+    }
     if (body.action === 'saveAssistantSession') {
       const kind = body.kind === 'analysis' ? 'analysis' : 'knowledge';
       const provider = body.provider === 'api' ? 'api' : 'codex';
@@ -75,6 +81,7 @@ export async function POST(request: NextRequest) {
         messages: assistantMessages(body.messages),
         knowledgePaths: Array.isArray(body.knowledgePaths) ? body.knowledgePaths.map(String) : [],
         includeSources: typeof body.includeSources === 'boolean' ? body.includeSources : undefined,
+        sourceIds: Array.isArray(body.sourceIds) ? body.sourceIds.map(String) : undefined,
         apiResponseId: body.apiResponseId ? String(body.apiResponseId) : undefined,
         codexThreadId: body.codexThreadId ? String(body.codexThreadId) : undefined,
         outputPath: body.outputPath ? String(body.outputPath) : undefined,
@@ -165,7 +172,7 @@ export async function POST(request: NextRequest) {
         generator: body.generator === 'api' ? 'api' : 'codex',
         briefPath: body.briefPath ? String(body.briefPath) : undefined,
         sessionPath: body.sessionPath ? String(body.sessionPath) : undefined,
-        creationSource: body.creationSource === 'content' || body.creationSource === 'series' ? body.creationSource : 'independent',
+        creationSource: body.creationSource === 'edit' || body.creationSource === 'content' || body.creationSource === 'series' ? body.creationSource : 'independent',
         linkedContentPaths: Array.isArray(body.linkedContentPaths) ? body.linkedContentPaths.map(String) : [],
         seriesName: body.seriesName ? String(body.seriesName) : undefined,
         seriesRules: body.seriesRules ? String(body.seriesRules) : undefined,

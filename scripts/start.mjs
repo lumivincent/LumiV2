@@ -1,10 +1,11 @@
-import { access, cp, mkdir } from 'node:fs/promises';
+import { access, cp, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 
 const appRoot = resolve(process.cwd());
 const workspaceRoot = resolve(process.env.WORKSPACE_ROOT?.trim() || appRoot);
 const seedEntries = ['AGENTS.md', 'memory', 'sources', 'records', 'outputs', 'knowledge', 'snapshots', 'data'];
+const deploymentSyncManifest = join(appRoot, 'deploy', 'workspace-sync.json');
 
 async function exists(path) {
   try { await access(path); return true; }
@@ -26,6 +27,34 @@ async function initializeWorkspace() {
   }
 }
 
+async function applyDeploymentWorkspaceSync() {
+  if (workspaceRoot === appRoot || !(await exists(deploymentSyncManifest))) return;
+
+  const manifest = JSON.parse(await readFile(deploymentSyncManifest, 'utf8'));
+  const syncId = typeof manifest.id === 'string' ? manifest.id.trim() : '';
+  const entries = Array.isArray(manifest.entries) ? manifest.entries : [];
+  if (!/^[a-zA-Z0-9._-]+$/.test(syncId)) throw new Error('部署数据同步编号无效');
+  if (entries.some((entry) => !seedEntries.includes(entry))) throw new Error('部署数据同步包含不允许的目录');
+
+  const markerDirectory = join(workspaceRoot, '.deployment-sync');
+  const markerPath = join(markerDirectory, `${syncId}.json`);
+  if (await exists(markerPath)) return;
+
+  const syncRoot = join(appRoot, 'deploy', 'workspace-sync');
+  console.log(`[workspace] 正在应用一次性本地数据同步：${syncId}`);
+  for (const entry of entries) {
+    const source = join(syncRoot, entry);
+    if (!(await exists(source))) continue;
+    const target = join(workspaceRoot, entry);
+    await mkdir(dirname(target), { recursive: true });
+    await cp(source, target, { recursive: true, force: true, errorOnExist: false });
+  }
+
+  await mkdir(markerDirectory, { recursive: true });
+  await writeFile(markerPath, `${JSON.stringify({ id: syncId, appliedAt: new Date().toISOString(), entries }, null, 2)}\n`, 'utf8');
+  console.log(`[workspace] 一次性本地数据同步已完成：${syncId}`);
+}
+
 async function prepareStandaloneAssets() {
   const standaloneRoot = join(appRoot, '.next', 'standalone');
   const staticSource = join(appRoot, '.next', 'static');
@@ -35,6 +64,7 @@ async function prepareStandaloneAssets() {
 }
 
 await initializeWorkspace();
+await applyDeploymentWorkspaceSync();
 await prepareStandaloneAssets();
 
 const serverPath = join(appRoot, '.next', 'standalone', 'server.js');

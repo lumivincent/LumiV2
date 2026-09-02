@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
     const quality = ['low', 'medium', 'high'].includes(String(body.quality)) ? String(body.quality) : 'medium';
     const references = Array.isArray(body.references) ? [...new Set(body.references.map(String).filter(Boolean))] : [];
     const parentPath = String(body.parentPath ?? '').trim();
-    const creationSource = body.creationSource === 'content' || body.creationSource === 'series' ? body.creationSource : 'independent';
+    const creationSource = body.creationSource === 'edit' || body.creationSource === 'content' || body.creationSource === 'series' ? body.creationSource : 'independent';
     const linkedContentPaths = Array.isArray(body.linkedContentPaths) ? body.linkedContentPaths.map(String) : [];
     const seriesName = String(body.seriesName ?? '').trim().slice(0, 120);
     const seriesRules = String(body.seriesRules ?? '').trim().slice(0, 20_000);
@@ -103,9 +103,11 @@ export async function POST(request: NextRequest) {
         text: `${modelPrompt}${conversationSummary ? `\n\n前序创作已经确认的要求：\n${conversationSummary}` : ''}`,
       }];
       if (!previousResponseId) {
-        for (const path of imagePaths) {
+        for (let index = 0; index < imagePaths.length; index += 1) {
+          const path = imagePaths[index];
           const asset = await readAsset(path);
           if (!['image/png', 'image/jpeg', 'image/webp'].includes(asset.mimeType)) continue;
+          content.push({ type: 'input_text', text: index === 0 && path === parentPath ? `图像 ${index + 1}：这是唯一需要修改的主图（${path}）。` : `图像 ${index + 1}：这是参考图片（${path}），只用于用户指定的参考作用。` });
           content.push({ type: 'input_image', image_url: `data:${asset.mimeType};base64,${asset.data.toString('base64')}` });
         }
       }
@@ -133,7 +135,7 @@ export async function POST(request: NextRequest) {
     if (references.length) {
       const form = new FormData();
       form.set('model', 'gpt-image-2');
-      form.set('prompt', modelPrompt);
+      form.set('prompt', `${modelPrompt}\n\n附件顺序：${references.map((path, index) => `图像 ${index + 1}=${path}`).join('；')}。请严格按此顺序和提示词中的 @编号对应关系使用参考图。`);
       form.set('size', size);
       form.set('quality', quality);
       form.set('output_format', 'png');

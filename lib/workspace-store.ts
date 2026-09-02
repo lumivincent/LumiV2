@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { basename, extname, join, relative, resolve } from 'node:path';
+import { buildInteractionAnalysis, buildInteractionOverview } from './interaction-source';
 
 const ROOT = resolve(/* turbopackIgnore: true */ process.env.WORKSPACE_ROOT?.trim() || process.cwd());
 const MEMORY_DIR = join(ROOT, 'memory');
@@ -41,6 +42,30 @@ const sourceDefinitions = [
     filename: 'numeric-core.md',
     url: 'https://lumiterra-balance-lab.vercel.app/numeric-core.md',
   },
+  {
+    id: 'agent',
+    title: 'Agent 交互',
+    filename: 'agent-prototype.js',
+    url: 'https://lumiterra-balance-lab.vercel.app/agent-prototype.js?v=20260902-2',
+    viewUrl: '/api/prototype?id=agent',
+    externalUrl: 'https://lumiterra-balance-lab.vercel.app/?doc=agent',
+    format: 'prototype',
+  },
+  {
+    id: 'lottery',
+    title: '抽奖交互',
+    filename: 'lottery-prototype.js',
+    url: 'https://lumiterra-balance-lab.vercel.app/lottery-prototype.js',
+    viewUrl: '/api/prototype?id=lottery',
+    externalUrl: 'https://lumiterra-balance-lab.vercel.app/?doc=lottery',
+    format: 'prototype',
+  },
+] as const;
+
+const prototypeAssetDefinitions = [
+  { id: 'prototypeBaseStyle', filename: 'prototype-base.css', url: 'https://lumiterra-balance-lab.vercel.app/styles.css?v=20260902-10' },
+  { id: 'agentStyle', filename: 'agent-prototype.css', url: 'https://lumiterra-balance-lab.vercel.app/agent-prototype.css?v=20260902-3' },
+  { id: 'lotteryStyle', filename: 'lottery-prototype.css', url: 'https://lumiterra-balance-lab.vercel.app/lottery-prototype.css?v=20260901-2' },
 ] as const;
 
 const memoryFiles = {
@@ -95,6 +120,7 @@ export type CreationTurn = {
 
 export type AssetMetadata = {
   path: string;
+  assetCode?: string;
   title: string;
   source: 'upload' | 'generated';
   createdAt: string;
@@ -111,7 +137,7 @@ export type AssetMetadata = {
   version?: number;
   briefPath?: string;
   sessionPath?: string;
-  creationSource?: 'independent' | 'content' | 'series';
+  creationSource?: 'independent' | 'edit' | 'content' | 'series';
   linkedContentPaths?: string[];
   seriesName?: string;
   seriesRules?: string;
@@ -204,6 +230,7 @@ export type AssistantSession = {
   messages: AssistantMessage[];
   knowledgePaths: string[];
   includeSources: boolean;
+  sourceIds?: string[];
   apiResponseId?: string;
   codexThreadId?: string;
   outputPath?: string;
@@ -276,12 +303,30 @@ async function readManifest(): Promise<Manifest> {
 }
 
 async function readAssetMetadata(): Promise<AssetMetadata[]> {
-  try { return JSON.parse(await readFile(ASSET_METADATA_PATH, 'utf8')) as AssetMetadata[]; }
-  catch { return []; }
+  try {
+    const entries = JSON.parse(await readFile(ASSET_METADATA_PATH, 'utf8')) as AssetMetadata[];
+    const next = entries.map((entry) => ({ ...entry }));
+    let changed = false;
+    for (const entry of [...next].sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.path.localeCompare(b.path))) {
+      if (entry.assetCode) continue;
+      entry.assetCode = nextAssetCode(next, entry.source === 'generated' ? 'IMG' : 'REF');
+      changed = true;
+    }
+    if (changed) await writeAssetMetadata(next);
+    return next;
+  } catch { return []; }
 }
 
 async function writeAssetMetadata(entries: AssetMetadata[]) {
   await writeFile(ASSET_METADATA_PATH, `${JSON.stringify(entries, null, 2)}\n`, 'utf8');
+}
+
+function nextAssetCode(entries: AssetMetadata[], prefix: 'IMG' | 'REF') {
+  const highest = entries.reduce((value, entry) => {
+    const match = entry.assetCode?.match(new RegExp(`^${prefix}-(\\d+)$`, 'i'));
+    return Math.max(value, match ? Number(match[1]) : 0);
+  }, 0);
+  return `${prefix}-${String(highest + 1).padStart(3, '0')}`;
 }
 
 async function upsertAssetMetadata(entry: AssetMetadata) {
@@ -424,7 +469,7 @@ async function listFiles(rootDir: string): Promise<WorkspaceFile[]> {
       }
       const info = await stat(fullPath);
       const extension = extname(entry.name).toLowerCase();
-      const isText = ['.md', '.txt', '.json'].includes(extension);
+      const isText = ['.md', '.txt', '.json', '.js'].includes(extension);
       result.push({
         path: relative(ROOT, fullPath).replaceAll('\\', '/'),
         name: basename(entry.name, extension),
@@ -517,7 +562,10 @@ export async function getWorkspace() {
     if (!updatedAt) {
       try { updatedAt = (await stat(path)).mtime.toISOString(); } catch {}
     }
-    return { ...source, content, updatedAt, hash: manifest.sources?.[source.id]?.hash ?? '' };
+    const hash = manifest.sources?.[source.id]?.hash ?? '';
+    const isPrototype = 'format' in source && source.format === 'prototype';
+    const overview = isPrototype ? buildInteractionOverview(source.id, source.title, content, hash) : content;
+    return { ...source, content, analysisOverview: overview, analysisContent: isPrototype ? `${overview}\n\n---\n\n${buildInteractionAnalysis(source.title, content, hash)}` : content, updatedAt, hash };
   }));
   return {
     memory: {
@@ -528,7 +576,7 @@ export async function getWorkspace() {
     sources,
     sourceSnapshots: snapshotFiles.map((file) => ({
       ...file,
-      sourceId: file.name.endsWith('-requirements') ? 'requirements' : file.name.endsWith('-numeric-core') ? 'numeric' : '',
+      sourceId: sourceDefinitions.find((source) => file.name.endsWith(`-${basename(source.filename, extname(source.filename))}`))?.id ?? '',
     })).filter((file) => file.sourceId),
     records,
     outputs,
@@ -623,6 +671,49 @@ export async function createKnowledgeItem(input: { type: KnowledgeItemType; titl
   return { path, metadata };
 }
 
+export async function updateKnowledgeItem(input: { path: string; title?: string; content: string; reason?: string; tags?: string[]; topicIds?: string[]; relatedIds?: string[] }) {
+  await ensureWorkspace();
+  const normalized = input.path.replaceAll('\\', '/');
+  if (!normalized.startsWith('knowledge/') || !normalized.endsWith('.md')) throw new Error('不能更新这个知识记录');
+  const entries = await readKnowledgeMetadata();
+  const existing = entries.find((entry) => entry.path === normalized);
+  if (!existing) throw new Error('知识记录不存在');
+  const target = assertInsideWorkspace(join(ROOT, normalized));
+  const previousDocument = await readText(target);
+  const content = input.content.trim().slice(0, 500_000);
+  if (!content) throw new Error('请输入需要保留的知识内容');
+  const title = knowledgeTitle(content, input.title || existing.title);
+  const reason = input.reason?.trim().slice(0, 2_000) || existing.reason;
+  const tags = [...new Set((input.tags ?? existing.tags).map((tag) => tag.trim()).filter(Boolean))].slice(0, 20);
+  const topicIds = [...new Set((input.topicIds ?? existing.topicIds).map((item) => item.trim()).filter(Boolean))].slice(0, 20);
+  const relatedIds = [...new Set((input.relatedIds ?? existing.relatedIds).map((item) => item.trim()).filter(Boolean))].slice(0, 40);
+  const sectionTitle = existing.type === 'discussion' ? '讨论内容' : '捕获内容';
+  const document = `# ${title}\n\n${reason ? `## 为什么保留\n\n${reason}\n\n` : ''}## ${sectionTitle}\n\n${content}\n`;
+  const now = new Date();
+  const snapshot = assertInsideWorkspace(join(KNOWLEDGE_SNAPSHOTS_DIR, `${timestampForFile(now)}-${existing.id}-v${existing.version}.md`));
+  await writeFile(snapshot, previousDocument, 'utf8');
+  await writeFile(target, document, 'utf8');
+  let sourceUrl = existing.sourceUrl;
+  if (existing.type === 'source') {
+    const firstLine = content.split(/\r?\n/).map((line) => line.trim()).find(Boolean) ?? '';
+    try { sourceUrl = new URL(firstLine).toString(); } catch { sourceUrl = undefined; }
+  }
+  const metadata: KnowledgeMetadata = {
+    ...existing,
+    title,
+    updatedAt: now.toISOString(),
+    version: existing.version + 1,
+    contentHash: createHash('sha256').update(document).digest('hex'),
+    topicIds,
+    tags,
+    relatedIds,
+    sourceUrl,
+    reason,
+  };
+  await writeKnowledgeMetadata([metadata, ...entries.filter((entry) => entry.path !== normalized)]);
+  return { path: normalized, metadata };
+}
+
 export async function saveAssistantSession(input: {
   id?: string;
   kind: AssistantSession['kind'];
@@ -633,6 +724,7 @@ export async function saveAssistantSession(input: {
   messages?: AssistantMessage[];
   knowledgePaths?: string[];
   includeSources?: boolean;
+  sourceIds?: string[];
   apiResponseId?: string;
   codexThreadId?: string;
   outputPath?: string;
@@ -660,6 +752,7 @@ export async function saveAssistantSession(input: {
     messages,
     knowledgePaths: [...new Set(input.knowledgePaths ?? existing?.knowledgePaths ?? [])].filter((path) => path.startsWith('knowledge/') && path.endsWith('.md')).slice(0, 12),
     includeSources: input.includeSources ?? existing?.includeSources ?? input.kind === 'analysis',
+    sourceIds: [...new Set(input.sourceIds ?? existing?.sourceIds ?? [])].filter((sourceId) => sourceDefinitions.some((source) => source.id === sourceId)).slice(0, sourceDefinitions.length),
     apiResponseId: input.apiResponseId?.trim().slice(0, 500) || existing?.apiResponseId,
     codexThreadId: input.codexThreadId?.trim().slice(0, 500) || existing?.codexThreadId,
     outputPath: input.outputPath?.trim().slice(0, 500) || existing?.outputPath,
@@ -985,19 +1078,22 @@ export async function uploadAsset(input: { title: string; mimeType: string; data
   const target = assertInsideWorkspace(join(OUTPUTS_DIR, 'assets', `${timestampForFile()}-${slugify(title)}${extension}`));
   await writeFile(target, buffer);
   const relativePath = relative(ROOT, target).replaceAll('\\', '/');
-  await upsertAssetMetadata({ path: relativePath, title, source: 'upload', createdAt: new Date().toISOString(), role: '未分类' });
+  const entries = await readAssetMetadata();
+  const assetCode = nextAssetCode(entries, 'REF');
+  await upsertAssetMetadata({ path: relativePath, assetCode, title, source: 'upload', createdAt: new Date().toISOString(), role: '未分类' });
   await appendChangelog(`- ${new Date().toISOString()} [素材] 上传 ${title}`);
-  return { path: relativePath };
+  return { path: relativePath, assetCode };
 }
 
 export async function saveGeneratedAsset(input: { title: string; data: string; usage?: string; prompt: string; references?: string[]; parentPath?: string; creationSource?: AssetMetadata['creationSource']; linkedContentPaths?: string[]; seriesName?: string; seriesRules?: string; threadId?: string; apiResponseId?: string; conversationTurns?: CreationTurn[]; conversationSummary?: string; knowledgePaths?: string[] }) {
   const saved = await uploadAsset({ title: input.title, mimeType: 'image/png', data: input.data });
   const entries = await readAssetMetadata();
   const parent = input.parentPath ? entries.find((item) => item.path === input.parentPath) : undefined;
-  const groupId = parent?.groupId ?? slugify(input.title);
+  const groupId = parent?.groupId ?? `asset-${randomUUID()}`;
   const version = Math.max(0, ...entries.filter((item) => item.groupId === groupId).map((item) => item.version ?? 1)) + 1;
+  const assetCode = nextAssetCode(entries, 'IMG');
   const knowledgePaths = [...new Set(input.knowledgePaths ?? [])].filter((path) => path.startsWith('knowledge/') && path.endsWith('.md')).slice(0, 12);
-  await upsertAssetMetadata({ path: saved.path, title: input.title, source: 'generated', generator: 'api', status: 'draft', createdAt: new Date().toISOString(), usage: input.usage, prompt: input.prompt, references: input.references ?? [], parentPath: input.parentPath, groupId, version, creationSource: input.creationSource, linkedContentPaths: input.linkedContentPaths ?? [], seriesName: input.seriesName, seriesRules: input.seriesRules, threadId: input.threadId, apiResponseId: input.apiResponseId, conversationTurns: input.conversationTurns?.slice(-8), conversationSummary: input.conversationSummary?.trim().slice(-6_000), knowledgePaths });
+  await upsertAssetMetadata({ path: saved.path, assetCode, title: input.title, source: 'generated', generator: 'api', status: 'draft', createdAt: new Date().toISOString(), usage: input.usage, prompt: input.prompt, references: input.references ?? [], parentPath: input.parentPath, groupId, version, creationSource: input.creationSource, linkedContentPaths: input.linkedContentPaths ?? [], seriesName: input.seriesName, seriesRules: input.seriesRules, threadId: input.threadId, apiResponseId: input.apiResponseId, conversationTurns: input.conversationTurns?.slice(-8), conversationSummary: input.conversationSummary?.trim().slice(-6_000), knowledgePaths });
   if (knowledgePaths.length) await recordKnowledgeUsage({ knowledgePaths, targetPath: saved.path });
   await appendChangelog(`- ${new Date().toISOString()} [图片生成] ${input.title}`);
   return saved;
@@ -1012,11 +1108,13 @@ export async function registerGeneratedAsset(input: { path: string; title: strin
   const existing = entries.find((item) => item.path === normalized);
   const parent = input.parentPath ? entries.find((item) => item.path === input.parentPath) : undefined;
   const title = input.title.trim().slice(0, 120) || existing?.title || basename(normalized, extname(normalized));
-  const groupId = existing?.groupId ?? parent?.groupId ?? slugify(title);
+  const groupId = existing?.groupId ?? parent?.groupId ?? `asset-${randomUUID()}`;
   const version = existing?.version ?? Math.max(0, ...entries.filter((item) => item.groupId === groupId).map((item) => item.version ?? 1)) + 1;
+  const assetCode = existing?.assetCode ?? nextAssetCode(entries, 'IMG');
   const entry: AssetMetadata = {
     ...existing,
     path: normalized,
+    assetCode,
     title,
     source: 'generated',
     generator: input.generator ?? 'codex',
@@ -1062,7 +1160,10 @@ export async function updateAssetMetadata(input: { path: string; title?: string;
     ...(typeof input.visualReference === 'boolean' ? { visualReference: input.visualReference } : {}),
     ...(typeof input.defaultReference === 'boolean' ? { defaultReference: input.defaultReference } : {}),
   };
-  await upsertAssetMetadata(next);
+  const renamedEntries = input.title?.trim() && existing?.groupId
+    ? entries.filter((item) => item.path !== normalized).map((item) => item.groupId === existing.groupId ? { ...item, title: next.title } : item)
+    : entries.filter((item) => item.path !== normalized);
+  await writeAssetMetadata([next, ...renamedEntries]);
   return { path: normalized, metadata: next };
 }
 
@@ -1113,6 +1214,12 @@ export async function syncSources(documents: Record<string, string>) {
   const nextManifest: Manifest = { lastSyncAt: checkedAt, sources: { ...(manifest.sources ?? {}) } };
   const changes: Array<{ id: string; title: string; changed: boolean; added: number; removed: number; addedLines: string[]; removedLines: string[] }> = [];
 
+  for (const asset of prototypeAssetDefinitions) {
+    const content = documents[asset.id];
+    if (typeof content !== 'string' || !content.trim()) throw new Error(`交互原型资源 ${asset.filename} 缺失`);
+    if (content.length > 5_000_000) throw new Error(`交互原型资源 ${asset.filename} 过长`);
+  }
+
   for (const source of sourceDefinitions) {
     const content = documents[source.id];
     if (typeof content !== 'string' || !content.trim()) throw new Error(`${source.title}内容缺失`);
@@ -1133,6 +1240,12 @@ export async function syncSources(documents: Record<string, string>) {
       url: source.url,
     };
     changes.push({ id: source.id, title: source.title, changed, ...diff });
+  }
+
+  for (const asset of prototypeAssetDefinitions) {
+    const content = documents[asset.id];
+    const path = assertInsideWorkspace(join(SOURCES_DIR, asset.filename));
+    if (await readText(path) !== content) await writeFile(path, content, 'utf8');
   }
 
   await writeFile(MANIFEST_PATH, `${JSON.stringify(nextManifest, null, 2)}\n`, 'utf8');

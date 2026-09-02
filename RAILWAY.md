@@ -35,6 +35,8 @@ APP_ACCESS_PASSWORD=为团队设置的强密码
 
 启动时，应用会在空 Volume 中创建 `/data/workspace`，并从部署包复制初始的 `memory/`、`sources/`、`records/`、`outputs/`、`knowledge/`、`snapshots/`、`data/` 和 `AGENTS.md`。后续重启或重新部署只补充缺失文件，不覆盖团队已经产生的数据。
 
+当仓库包含 `deploy/workspace-sync.json` 时，启动程序会按其中的同步编号应用一次 `deploy/workspace-sync/` 数据包：覆盖线上同名文件、保留线上独有文件。完成后会在 Volume 的 `.deployment-sync/` 写入标记，同一数据包不会因重启而重复覆盖。
+
 ## 4. 服务设置
 
 通常不需要手动覆盖命令。需要排查时可核对：
@@ -61,7 +63,9 @@ Healthcheck Path: /api/health
 - 正式使用前为 Volume 开启定期备份。
 - 迁移或排障时可用 Railway CLI 的 `railway volume browse /` 检查和导出文件。
 
-仓库默认不提交 `outputs/`，所以历史推文正文和图片不会仅靠 GitHub 自动进入新 Volume。若需要把当前本地工作台完整迁移到 Railway，在首次部署并创建 Volume 后，通过 Railway CLI 将下列目录上传到 Volume 的 `/workspace/`：
+仓库默认不直接提交根目录的 `outputs/`。需要随一次部署迁移本地工作台时，把经过确认的数据快照放入 `deploy/workspace-sync/`，并为 `deploy/workspace-sync.json` 设置新的唯一同步编号。部署后应从 Railway 日志确认一次性同步完成。
+
+也可以通过 Railway CLI 将下列目录手动上传到 Volume 的 `/workspace/`：
 
 ```text
 data/

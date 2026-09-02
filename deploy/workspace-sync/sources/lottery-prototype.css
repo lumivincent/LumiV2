@@ -1,0 +1,728 @@
+.lottery-prototype-document {
+  max-width: 1120px;
+  width: min(1120px, 100%);
+}
+
+.lottery-prototype-document button,
+.lottery-prototype-document input {
+  font: inherit;
+}
+
+.lottery-hero {
+  align-items: flex-end;
+  display: flex;
+  gap: 28px;
+  justify-content: space-between;
+  padding: 10px 0 28px;
+}
+
+.lottery-hero > div > span,
+.lottery-section-head small,
+.lottery-wallet small,
+.lottery-main small,
+.lottery-ledger-grid small {
+  color: var(--ink-faint);
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.08em;
+}
+
+.lottery-prototype-document .lottery-hero h1 {
+  border: 0;
+  font-size: clamp(44px, 6vw, 68px);
+  letter-spacing: -0.055em;
+  line-height: 0.98;
+  margin: 14px 0 12px;
+  padding: 0;
+}
+
+.lottery-hero p {
+  color: var(--ink-soft);
+  font-size: 13px;
+  margin: 0;
+  max-width: 680px;
+}
+
+.lottery-hero > aside {
+  align-items: flex-end;
+  background: linear-gradient(145deg, #2f154e, #7f3bd6);
+  border-radius: 14px;
+  box-shadow: 0 18px 40px rgba(67, 26, 110, 0.2);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  min-width: 150px;
+  padding: 14px;
+}
+
+.lottery-hero > aside small,
+.lottery-hero > aside em {
+  font-family: var(--mono);
+  font-size: 7px;
+  font-style: normal;
+  opacity: 0.7;
+}
+
+.lottery-hero > aside b {
+  font-size: 25px;
+  margin: 4px 0;
+}
+
+.lottery-section {
+  border-top: 1px solid var(--line);
+  margin-top: 38px;
+  padding-top: 28px;
+}
+
+.lottery-section-head {
+  align-items: flex-end;
+  display: flex;
+  gap: 20px;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.lottery-prototype-document .lottery-section-head h2 {
+  border: 0;
+  font-size: 25px;
+  margin: 3px 0 0;
+  padding: 0;
+}
+
+.lottery-section-head p {
+  color: var(--ink-faint);
+  font-size: 9px;
+  margin: 0;
+  max-width: 430px;
+  text-align: right;
+}
+
+.lottery-app {
+  background: color-mix(in srgb, var(--surface-solid) 90%, #f4edff);
+  border: 1px solid var(--line-strong);
+  border-radius: 18px;
+  box-shadow: 0 22px 56px rgba(55, 26, 88, 0.1);
+  min-height: 600px;
+  overflow: hidden;
+  position: relative;
+}
+
+.lottery-wallet {
+  align-items: center;
+  background: color-mix(in srgb, var(--surface-solid) 94%, #e9dcff);
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 16px;
+}
+
+.lottery-wallet > a {
+  align-items: center;
+  color: var(--ink);
+  display: flex;
+  gap: 9px;
+  text-decoration: none;
+}
+
+.lottery-wallet > a i {
+  align-items: center;
+  background: #7139b6;
+  border-radius: 8px;
+  color: #fff;
+  display: flex;
+  font-style: normal;
+  font-weight: 900;
+  height: 31px;
+  justify-content: center;
+  width: 31px;
+}
+
+.lottery-wallet > a span,
+.lottery-wallet > div > span {
+  display: flex;
+  flex-direction: column;
+}
+
+.lottery-wallet > a b {
+  font-size: 11px;
+}
+
+.lottery-wallet > div {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+}
+
+.lottery-wallet > div b {
+  font-size: 9px;
+}
+
+.lottery-wallet button,
+.lottery-presets button,
+.lottery-primary,
+.lottery-modal button,
+.lottery-result button,
+.lottery-depository-card button {
+  background: var(--surface-solid);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 8px;
+  font-weight: 700;
+  padding: 8px 10px;
+}
+
+.lottery-main {
+  padding: 17px;
+}
+
+.lottery-abundance {
+  background: linear-gradient(125deg, #2f154e, #63329d 58%, #8c4bd3);
+  border-radius: 13px;
+  color: #fff;
+  padding: 14px;
+}
+
+.lottery-abundance header,
+.lottery-draw-card > header,
+.lottery-outcomes > header,
+.lottery-depository-card > header,
+.lottery-history > header {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.lottery-abundance header span,
+.lottery-draw-card > header span,
+.lottery-outcomes > header span,
+.lottery-depository-card > header span,
+.lottery-history > header {
+  display: flex;
+  flex-direction: column;
+}
+
+.lottery-abundance header small,
+.lottery-abundance footer {
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.lottery-abundance header b {
+  font-size: 15px;
+  margin-top: 2px;
+}
+
+.lottery-abundance header strong {
+  font-size: 30px;
+}
+
+.lottery-abundance-bar {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 99px;
+  height: 9px;
+  margin: 13px 0 8px;
+  overflow: hidden;
+}
+
+.lottery-abundance-bar i {
+  background: linear-gradient(90deg, #d9a8ff, #fff);
+  border-radius: inherit;
+  display: block;
+  height: 100%;
+  transition: width 240ms ease;
+}
+
+.lottery-abundance footer {
+  display: grid;
+  font-size: 7px;
+  grid-template-columns: auto 1fr auto;
+  text-align: center;
+}
+
+.lottery-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 0.86fr 1.14fr;
+  margin-top: 12px;
+}
+
+.lottery-draw-card,
+.lottery-outcomes,
+.lottery-depository-card,
+.lottery-history {
+  background: var(--surface-solid);
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  padding: 13px;
+}
+
+.lottery-draw-card > header b,
+.lottery-outcomes > header b,
+.lottery-depository-card > header b,
+.lottery-history > header b {
+  font-size: 14px;
+  margin-top: 2px;
+}
+
+.lottery-draw-card > header em,
+.lottery-outcomes > header em,
+.lottery-depository-card > header em {
+  background: #f0e5ff;
+  border-radius: 999px;
+  color: #65309f;
+  font-size: 7px;
+  font-style: normal;
+  padding: 5px 7px;
+}
+
+.lottery-draw-card > label {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  margin-top: 14px;
+}
+
+.lottery-draw-card input {
+  background: var(--canvas-deep);
+  border: 1px solid var(--line-strong);
+  border-radius: 9px 0 0 9px;
+  color: var(--ink);
+  font-size: 20px;
+  font-weight: 750;
+  min-width: 0;
+  outline: 0;
+  padding: 12px;
+}
+
+.lottery-draw-card > label > span {
+  align-items: center;
+  background: var(--canvas-deep);
+  border: 1px solid var(--line-strong);
+  border-left: 0;
+  border-radius: 0 9px 9px 0;
+  color: var(--ink-faint);
+  display: flex;
+  font-family: var(--mono);
+  font-size: 7px;
+  padding: 0 10px;
+}
+
+.lottery-presets {
+  display: grid;
+  gap: 5px;
+  grid-template-columns: repeat(5, 1fr);
+  margin-top: 6px;
+}
+
+.lottery-presets button.active,
+.lottery-presets button:hover {
+  background: #6e35aa;
+  border-color: #6e35aa;
+  color: #fff;
+}
+
+.lottery-draw-card dl,
+.lottery-modal dl {
+  margin: 13px 0;
+}
+
+.lottery-draw-card dl div,
+.lottery-modal dl div {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  font-size: 8px;
+  justify-content: space-between;
+  padding: 7px 0;
+}
+
+.lottery-draw-card dt,
+.lottery-modal dt {
+  color: var(--ink-faint);
+}
+
+.lottery-draw-card dd,
+.lottery-modal dd {
+  font-weight: 750;
+  margin: 0;
+}
+
+.lottery-primary {
+  background: linear-gradient(110deg, #572387, #8849c9);
+  border: 0;
+  color: #fff;
+  font-size: 10px;
+  padding: 11px;
+  width: 100%;
+}
+
+.lottery-primary:disabled,
+.lottery-modal button:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.lottery-draw-card > p,
+.lottery-outcomes > p,
+.lottery-depository-card > p {
+  color: var(--ink-faint);
+  font-size: 7px;
+  line-height: 1.55;
+  margin: 9px 0 0;
+}
+
+.lottery-outcomes > div {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(2, 1fr);
+  margin-top: 12px;
+}
+
+.lottery-tier {
+  align-items: center;
+  background: var(--canvas-deep);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: auto 1fr auto;
+  padding: 10px;
+}
+
+.lottery-tier i {
+  align-items: center;
+  background: #f0e5ff;
+  border-radius: 8px;
+  color: #6835a0;
+  display: flex;
+  font-size: 14px;
+  font-style: normal;
+  height: 32px;
+  justify-content: center;
+  width: 32px;
+}
+
+.lottery-tier span {
+  display: flex;
+  flex-direction: column;
+}
+
+.lottery-tier b {
+  font-size: 9px;
+  margin-top: 3px;
+}
+
+.lottery-tier em {
+  color: #66349a;
+  font-family: var(--mono);
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.lottery-tier.legend {
+  background: linear-gradient(145deg, #fff8dd, var(--surface-solid));
+  border-color: #d7b34b;
+}
+
+.lottery-modal-layer {
+  align-items: center;
+  background: rgba(18, 10, 26, 0.52);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 20px;
+  position: absolute;
+  z-index: 20;
+}
+
+.lottery-modal,
+.lottery-result {
+  background: var(--surface-solid);
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  box-shadow: 0 24px 70px rgba(19, 8, 32, 0.34);
+  padding: 16px;
+  width: min(500px, 100%);
+}
+
+.lottery-modal > header {
+  align-items: flex-start;
+  display: flex;
+  justify-content: space-between;
+}
+
+.lottery-modal > header span {
+  display: flex;
+  flex-direction: column;
+}
+
+.lottery-modal > header b {
+  font-size: 18px;
+  margin-top: 3px;
+}
+
+.lottery-modal > header button {
+  background: transparent;
+  border: 0;
+  color: var(--ink-faint);
+  font-size: 20px;
+  padding: 0 3px;
+}
+
+.lottery-confirm-flow {
+  align-items: center;
+  background: var(--canvas-deep);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 1fr auto 1fr auto 1fr;
+  margin-top: 14px;
+  padding: 12px;
+  text-align: center;
+}
+
+.lottery-confirm-flow span {
+  display: flex;
+  flex-direction: column;
+}
+
+.lottery-confirm-flow b {
+  font-size: 9px;
+  margin-top: 4px;
+}
+
+.lottery-modal > p {
+  color: var(--ink-faint);
+  font-size: 8px;
+  line-height: 1.55;
+}
+
+.lottery-modal > footer {
+  display: grid;
+  gap: 7px;
+  grid-template-columns: 0.8fr 1.2fr;
+  margin-top: 14px;
+}
+
+.lottery-modal > footer button:last-child,
+.lottery-result > button {
+  background: #67339c;
+  border-color: #67339c;
+  color: #fff;
+}
+
+.lottery-result {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  text-align: center;
+  width: min(380px, 100%);
+}
+
+.lottery-result > i {
+  align-items: center;
+  background: #f0e5ff;
+  border-radius: 50%;
+  color: #6932a0;
+  display: flex;
+  font-size: 27px;
+  font-style: normal;
+  height: 64px;
+  justify-content: center;
+  width: 64px;
+}
+
+.lottery-result > small {
+  color: #7238ac;
+  font-family: var(--mono);
+  font-size: 7px;
+  letter-spacing: 0.12em;
+  margin-top: 12px;
+}
+
+.lottery-result h2 {
+  border: 0;
+  font-size: 24px;
+  margin: 4px 0;
+  padding: 0;
+}
+
+.lottery-result > strong {
+  font-size: 30px;
+}
+
+.lottery-result > p {
+  color: var(--ink-faint);
+  font-size: 8px;
+}
+
+.lottery-result > div {
+  display: grid;
+  gap: 7px;
+  grid-template-columns: 1fr 1fr;
+  margin: 12px 0;
+  width: 100%;
+}
+
+.lottery-result > div span {
+  background: var(--canvas-deep);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  display: flex;
+  flex-direction: column;
+  padding: 9px;
+}
+
+.lottery-result > div b {
+  font-size: 9px;
+  margin-top: 3px;
+}
+
+.lottery-result > button {
+  width: 100%;
+}
+
+.lottery-ledger-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 0.8fr 1.2fr;
+}
+
+.lottery-depository-card > strong {
+  display: block;
+  font-size: 30px;
+  margin-top: 18px;
+}
+
+.lottery-depository-card > strong small {
+  font-size: 9px;
+}
+
+.lottery-depository-card > div {
+  background: var(--line);
+  border-radius: 99px;
+  height: 7px;
+  margin-top: 10px;
+  overflow: hidden;
+}
+
+.lottery-depository-card > div i {
+  background: linear-gradient(90deg, #66329c, #a66be3);
+  display: block;
+  height: 100%;
+}
+
+.lottery-depository-card > footer {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-top: 9px;
+}
+
+.lottery-depository-card > footer span {
+  color: var(--ink-faint);
+  font-size: 7px;
+}
+
+.lottery-history > div {
+  margin-top: 10px;
+}
+
+.lottery-history article {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 8px;
+  grid-template-columns: auto 1fr auto auto;
+  padding: 9px 2px;
+}
+
+.lottery-history article > i {
+  align-items: center;
+  background: #f0e5ff;
+  border-radius: 7px;
+  display: flex;
+  font-style: normal;
+  height: 28px;
+  justify-content: center;
+  width: 28px;
+}
+
+.lottery-history article > span {
+  display: flex;
+  flex-direction: column;
+}
+
+.lottery-history article b,
+.lottery-history article strong,
+.lottery-history article em {
+  font-size: 8px;
+}
+
+.lottery-history article strong {
+  color: #68359e;
+}
+
+.lottery-history article em {
+  color: var(--ink-faint);
+  font-style: normal;
+}
+
+@media (max-width: 820px) {
+  .lottery-grid,
+  .lottery-ledger-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .lottery-wallet > div > span:nth-child(2),
+  .lottery-wallet > div > span:nth-child(3) {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .lottery-hero,
+  .lottery-section-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .lottery-section-head p {
+    text-align: left;
+  }
+
+  .lottery-prototype-document .lottery-hero h1 {
+    font-size: 42px;
+  }
+
+  .lottery-wallet > a span,
+  .lottery-wallet > div > span {
+    display: none;
+  }
+
+  .lottery-main {
+    padding: 12px;
+  }
+
+  .lottery-outcomes > div {
+    grid-template-columns: 1fr;
+  }
+
+  .lottery-confirm-flow {
+    grid-template-columns: 1fr;
+  }
+
+  .lottery-confirm-flow > i {
+    transform: rotate(90deg);
+  }
+
+  .lottery-history article {
+    grid-template-columns: auto 1fr auto;
+  }
+
+  .lottery-history article em {
+    display: none;
+  }
+}

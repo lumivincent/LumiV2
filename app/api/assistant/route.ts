@@ -45,6 +45,7 @@ export async function POST(request: NextRequest) {
     const previousResponseId = String(body.previousResponseId ?? '').trim().slice(0, 500);
     const includeSources = body.includeSources === true;
     const knowledgePaths = Array.isArray(body.knowledgePaths) ? [...new Set(body.knowledgePaths.map(String).filter((path) => path.startsWith('knowledge/') && path.endsWith('.md')))].slice(0, 12) : [];
+    const sourceIds = Array.isArray(body.sourceIds) ? [...new Set(body.sourceIds.map(String))].slice(0, 8) : [];
     const transcript = Array.isArray(body.messages) ? body.messages.slice(-12).flatMap((entry) => {
       if (!entry || typeof entry !== 'object') return [];
       const item = entry as Record<string, unknown>;
@@ -66,10 +67,11 @@ export async function POST(request: NextRequest) {
       return `【知识库参考 · ${metadata.title}】\n${content}`;
     }).filter(Boolean).join('\n\n');
 
-    let remainingSources = 70_000;
-    const sourceContext = includeSources ? workspace.sources.map((source) => {
+    let remainingSources = sourceIds.length === 1 ? 250_000 : 120_000;
+    const sourceContext = includeSources ? workspace.sources.filter((source) => !sourceIds.length || sourceIds.includes(source.id)).map((source) => {
       if (remainingSources <= 0) return '';
-      const content = source.content.slice(0, remainingSources);
+      const analysisSource = 'format' in source && source.format === 'prototype' ? source.analysisContent ?? source.content : source.content;
+      const content = analysisSource.slice(0, remainingSources);
       remainingSources -= content.length;
       return `【产品事实来源 · ${source.title}】\n${content}`;
     }).filter(Boolean).join('\n\n') : '';
