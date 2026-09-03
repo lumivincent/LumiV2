@@ -96,11 +96,28 @@ function parseJsonResponse<T>(content: string): T {
   return JSON.parse(content.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '')) as T;
 }
 
-function MarkdownView({ content, className = '', linksNewTab = false }: { content: string; className?: string; linksNewTab?: boolean }) {
-  const components = linksNewTab ? {
-    a: ({ node, ...props }: React.ComponentPropsWithoutRef<'a'> & { node?: unknown }) => {
+function resolveKnowledgeLink(sourcePath: string, href?: string) {
+  if (!href || !sourcePath || /^(?:[a-z]+:|#|\/)/i.test(href)) return '';
+  const pathOnly = href.split('#')[0].split('?')[0];
+  const base = sourcePath.slice(0, sourcePath.lastIndexOf('/') + 1);
+  const segments = (pathOnly.startsWith('knowledge/') ? pathOnly : `${base}${pathOnly}`).split('/');
+  const normalized: string[] = [];
+  for (const segment of segments) {
+    if (!segment || segment === '.') continue;
+    if (segment === '..') normalized.pop();
+    else normalized.push(segment);
+  }
+  const path = normalized.join('/');
+  return path.startsWith('knowledge/') && path.endsWith('.md') ? path : '';
+}
+
+function MarkdownView({ content, className = '', linksNewTab = false, sourcePath = '', onKnowledgeLink }: { content: string; className?: string; linksNewTab?: boolean; sourcePath?: string; onKnowledgeLink?: (path: string) => void }) {
+  const components = linksNewTab || onKnowledgeLink ? {
+    a: ({ node, href, ...props }: React.ComponentPropsWithoutRef<'a'> & { node?: unknown }) => {
       void node;
-      return <a {...props} target="_blank" rel="noopener noreferrer" />;
+      const knowledgePath = resolveKnowledgeLink(sourcePath, href);
+      if (knowledgePath && onKnowledgeLink) return <a {...props} href={`#knowledge=${encodeURIComponent(knowledgePath)}`} onClick={(event) => { event.preventDefault(); onKnowledgeLink(knowledgePath); }} />;
+      return <a {...props} href={href} {...(linksNewTab ? { target: '_blank', rel: 'noopener noreferrer' } : {})} />;
     },
   } : undefined;
   return <div className={`markdown-body ${className}`}><ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]} components={components}>{content || '暂无内容'}</ReactMarkdown></div>;
@@ -1957,7 +1974,7 @@ function KnowledgeBase({ workspace, refresh, setNotice }: { workspace: Workspace
   const [topicCreateOpen, setTopicCreateOpen] = useState(false);
   const [conversationPaths, setConversationPaths] = useState<string[]>([]);
   const [search, setSearch] = useState('');
-  const [selectedPath, setSelectedPath] = useState(() => workspace.knowledgeMetadata.find((item) => item.type === 'topic' && item.status !== 'archived')?.path ?? workspace.knowledgeMetadata.find((item) => item.status !== 'archived')?.path ?? '');
+  const [selectedPath, setSelectedPath] = useState(() => [...workspace.knowledgeMetadata].filter((item) => item.status !== 'archived').sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).find((item) => item.type === 'topic')?.path ?? workspace.knowledgeMetadata.find((item) => item.status !== 'archived')?.path ?? '');
 
   const typeOrder: Record<KnowledgeFilter, number> = { all: 0, topic: 1, insight: 2, source: 3 };
   const allItems = workspace.knowledgeMetadata.filter((item) => item.status !== 'archived').sort((a, b) => (typeOrder[a.type as KnowledgeFilter] ?? 9) - (typeOrder[b.type as KnowledgeFilter] ?? 9) || b.updatedAt.localeCompare(a.updatedAt));
@@ -2011,7 +2028,7 @@ function KnowledgeBase({ workspace, refresh, setNotice }: { workspace: Workspace
       <section className="box knowledge-reader">{!activeMetadata || !activeFile ? <Empty text="从左侧选择一项查看内容" /> : <>
       <div className="knowledge-reader-head"><span>{knowledgeTypeLabel(activeMetadata.type)} · {formatTime(activeMetadata.updatedAt)}</span></div>
       <div className="knowledge-reader-title"><div><h2>{activeMetadata.title}</h2>{activeMetadata.tags.length > 0 && <p>{activeMetadata.tags.map((tag) => `#${tag}`).join('  ')}</p>}</div><div className="knowledge-reader-actions"><button onClick={() => { setConversationPaths([activeMetadata.path]); setCaptureOpen(true); }} type="button">围绕它继续讨论</button>{activeMetadata.sourceUrl && <a href={activeMetadata.sourceUrl} target="_blank" rel="noreferrer">查看原始链接 ↗</a>}</div></div>
-      <MarkdownView content={stripTitle(activeFile.content ?? '')} className="knowledge-document" linksNewTab />
+      <MarkdownView content={stripTitle(activeFile.content ?? '')} className="knowledge-document" sourcePath={activeMetadata.path} onKnowledgeLink={setSelectedPath} linksNewTab />
       {relatedTargets.length > 0 && <section className="knowledge-related-work"><div><strong>相关工作</strong><span>这些产出留在原工作区，这里仅建立关联。</span></div>{relatedTargets.map((path) => { const file = workspace.outputs.find((item) => item.path === path); const label = path.startsWith('outputs/twitter/') ? '内容' : path.startsWith('outputs/assets/') ? '素材' : path.startsWith('outputs/documents/') ? '分析' : '工作记录'; return <div key={path}><span>{label}</span><strong>{file ? displayName(file) : path.split('/').at(-1)}</strong><small>{file ? formatTime(file.updatedAt) : ''}</small></div>; })}</section>}
       <details className="knowledge-record-info"><summary>记录信息</summary><p>{activeMetadata.id} · 版本 {activeMetadata.version}</p><button onClick={() => changeStatus('archived')} type="button">归档这条记录</button></details>
     </>}</section>
