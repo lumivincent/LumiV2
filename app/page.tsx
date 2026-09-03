@@ -1973,18 +1973,6 @@ function MarketingBoard({ workspace, refresh, setNotice, setView }: { workspace:
   </div>;
 }
 
-type KnowledgeFilter = 'all' | KnowledgeItemType;
-
-const KNOWLEDGE_FILTERS: Array<{ id: KnowledgeFilter; label: string }> = [
-  { id: 'all', label: '全部文档' },
-  { id: 'topic', label: '主题总览' },
-  { id: 'insight', label: '结论' },
-  { id: 'discussion', label: '总结' },
-  { id: 'source', label: '相关资料' },
-  { id: 'experiment', label: '复盘' },
-  { id: 'context', label: '资料包' },
-];
-
 function knowledgeTypeLabel(type: KnowledgeItemType) {
   return ({ source: '资料', discussion: '总结', insight: '结论', topic: '总览', experiment: '复盘', context: '资料包' } as const)[type];
 }
@@ -2002,13 +1990,13 @@ function knowledgeProjectNumber(item: KnowledgeMetadata) {
 }
 
 function KnowledgeBase({ workspace, refresh, setNotice }: { workspace: Workspace; refresh: (silent?: boolean) => Promise<void>; setNotice: (notice: Notice) => void }) {
-  const [filter, setFilter] = useState<KnowledgeFilter>('all');
   const [captureOpen, setCaptureOpen] = useState(false);
   const [topicCreateOpen, setTopicCreateOpen] = useState(false);
   const [conversationPaths, setConversationPaths] = useState<string[]>([]);
   const [search, setSearch] = useState('');
   const [searchScope, setSearchScope] = useState<'topic' | 'global'>('topic');
   const [reportsOpen, setReportsOpen] = useState(false);
+  const [sourcesOpen, setSourcesOpen] = useState(true);
   const feedRef = useRef<HTMLElement>(null);
   const readerRef = useRef<HTMLElement>(null);
   const activeRowRef = useRef<HTMLButtonElement>(null);
@@ -2029,19 +2017,15 @@ function KnowledgeBase({ workspace, refresh, setNotice }: { workspace: Workspace
   };
   const allKnowledgeItems = workspace.knowledgeMetadata.filter((item) => item.status !== 'archived').sort(sortKnowledgeItems);
   const topicItems = allKnowledgeItems.filter((item) => selectedTopic && (item.id === selectedTopic.id || item.topicIds.includes(selectedTopic.id)));
-  const topicFilters = KNOWLEDGE_FILTERS.filter((item) => item.id === 'all' || topicItems.some((entry) => entry.type === item.id));
   const query = search.trim().toLowerCase();
   const expandedTerms = query ? [...new Set([query, ...Object.entries(workspace.knowledgeAliases).flatMap(([term, aliases]) => [term, ...aliases].some((value) => value.toLowerCase().includes(query)) ? [term, ...aliases] : []).map((value) => value.toLowerCase())])] : [];
   const searchBaseItems = searchScope === 'global' && query ? allKnowledgeItems : topicItems;
   const visibleItems = searchBaseItems.filter((item) => {
-    if (filter !== 'all' && item.type !== filter) return false;
     if (!query) return true;
     const file = workspace.knowledgeFiles.find((entry) => entry.path === item.path);
     const text = [item.id, item.title, item.type, item.status, item.sourceUrl, item.reason, ...item.tags, file?.content].filter(Boolean).join('\n').toLowerCase();
     return expandedTerms.some((term) => text.includes(term));
   });
-  const visibleCoreItems = visibleItems.filter((item) => !isKnowledgeProjectReport(item));
-  const visibleProjectItems = visibleItems.filter(isKnowledgeProjectReport);
   const activeMetadata = workspace.knowledgeMetadata.find((item) => item.path === selectedPath);
   const activeFile = workspace.knowledgeFiles.find((file) => file.path === selectedPath);
   const activeContent = stripTitle(activeFile?.content ?? '');
@@ -2059,6 +2043,7 @@ function KnowledgeBase({ workspace, refresh, setNotice }: { workspace: Workspace
       if (topicId) setSelectedTopicId(topicId);
       setSelectedPath(item.path);
       if (isKnowledgeProjectReport(item)) setReportsOpen(true);
+      if (item.type === 'source' && !isKnowledgeProjectReport(item)) setSourcesOpen(true);
     };
     restorePath();
     window.addEventListener('popstate', restorePath);
@@ -2085,14 +2070,15 @@ function KnowledgeBase({ workspace, refresh, setNotice }: { workspace: Workspace
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => activeRowRef.current?.scrollIntoView({ block: 'nearest' }));
     return () => window.cancelAnimationFrame(frame);
-  }, [reportsOpen, selectedPath]);
+  }, [reportsOpen, sourcesOpen, selectedPath]);
 
-  function openKnowledgePath(path: string, historyMode: 'push' | 'replace' = 'push', adjustFilter = true) {
+  function openKnowledgePath(path: string, historyMode: 'push' | 'replace' = 'push') {
     const item = workspace.knowledgeMetadata.find((entry) => entry.path === path);
     const topicId = item?.type === 'topic' ? item.id : item?.topicIds.find((id) => topics.some((topic) => topic.id === id));
     if (topicId) setSelectedTopicId(topicId);
     if (item && isKnowledgeProjectReport(item)) setReportsOpen(true);
-    if (adjustFilter && item && filter !== 'all' && item.type !== filter) setFilter('all');
+    if (item?.type === 'source' && !isKnowledgeProjectReport(item)) setSourcesOpen(true);
+    setSearch('');
     setSelectedPath(path);
     if (typeof window !== 'undefined') {
       const url = new URL(window.location.href);
@@ -2105,19 +2091,11 @@ function KnowledgeBase({ workspace, refresh, setNotice }: { workspace: Workspace
 
   function chooseTopic(topic: KnowledgeMetadata) {
     setSelectedTopicId(topic.id);
-    setFilter('all');
     setSearch('');
     setSearchScope('topic');
     setReportsOpen(false);
+    setSourcesOpen(true);
     openKnowledgePath(topic.path);
-  }
-
-  function chooseFilter(nextFilter: KnowledgeFilter) {
-    setFilter(nextFilter);
-    setSearch('');
-    setSearchScope('topic');
-    const candidates = nextFilter === 'all' ? topicItems : topicItems.filter((item) => item.type === nextFilter);
-    if (candidates.length && !candidates.some((item) => item.path === selectedPath)) openKnowledgePath(candidates[0].path, 'push', false);
   }
 
   function jumpToOutline(index: number) {
@@ -2126,21 +2104,17 @@ function KnowledgeBase({ workspace, refresh, setNotice }: { workspace: Workspace
     if (reader && heading) reader.scrollTo({ top: Math.max(0, heading.offsetTop - 92), behavior: 'smooth' });
   }
 
-  function previewFor(item: KnowledgeMetadata) {
-    const file = workspace.knowledgeFiles.find((entry) => entry.path === item.path);
-    return (stripTitle(file?.content ?? '').split(/\n\s*\n/).map((paragraph) => paragraph.trim()).find((paragraph) => paragraph && !/^(#{1,6}\s|[-*]\s|\|)/.test(paragraph)) ?? '').replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').replace(/[`*_>]/g, '').trim().slice(0, 120);
-  }
-
   function topicNameFor(item: KnowledgeMetadata) {
     const topic = item.type === 'topic' ? item : topics.find((entry) => item.topicIds.includes(entry.id));
     return topic ? shortKnowledgeTopicTitle(topic.title) : '待归类';
   }
 
-  function renderKnowledgeRow(item: KnowledgeMetadata, compact = false) {
+  function renderDirectoryItem(item: KnowledgeMetadata, nested = false) {
     const active = selectedPath === item.path;
-    return <button ref={active ? activeRowRef : undefined} className={`${compact ? 'knowledge-project-row' : 'knowledge-feed-row'} ${active ? 'active' : ''}`} onClick={() => openKnowledgePath(item.path)} type="button" key={item.id}>
-      {compact ? <span>{/^RC-\d+/.exec(item.title)?.[0] ?? knowledgeTypeLabel(item.type)}</span> : <span className={`knowledge-kind ${item.type}`}>{knowledgeTypeLabel(item.type)}</span>}
-      <div><strong>{item.title.replace(/\s*独立营销研究$/, '')}</strong>{!compact && <p>{previewFor(item) || '打开查看完整内容'}</p>}<small>{searchScope === 'global' && query ? `${topicNameFor(item)} · ` : ''}{knowledgeTypeLabel(item.type)}{!compact && item.tags.length > 0 ? ` · ${item.tags.slice(0, 2).map((tag) => `#${tag}`).join('  ')}` : ''}</small></div>
+    const code = /^RC-\d+/.exec(item.title)?.[0];
+    return <button ref={active ? activeRowRef : undefined} className={`knowledge-tree-item ${nested ? 'nested' : ''} ${active ? 'active' : ''}`} onClick={() => openKnowledgePath(item.path)} type="button" key={item.id}>
+      <span>{code ?? knowledgeTypeLabel(item.type)}</span>
+      <div><strong>{item.title.replace(/\s*独立营销研究$/, '')}</strong><small>{searchScope === 'global' && query ? `${topicNameFor(item)} · ` : ''}{knowledgeTypeLabel(item.type)}</small></div>
     </button>;
   }
 
@@ -2159,30 +2133,28 @@ function KnowledgeBase({ workspace, refresh, setNotice }: { workspace: Workspace
   return <div className="page knowledge-page">
     <section className="knowledge-hero">
       <div><h1>知识库</h1><p>{selectedTopic ? shortKnowledgeTopicTitle(selectedTopic.title) : '按主题沉淀运营知识'}</p></div>
-      <div className="knowledge-main-search"><div className="knowledge-search-scope"><button className={searchScope === 'topic' ? 'active' : ''} onClick={() => { setSearchScope('topic'); setFilter('all'); }} type="button">主题内</button><button className={searchScope === 'global' ? 'active' : ''} onClick={() => { setSearchScope('global'); setFilter('all'); }} type="button">全库</button></div><span>⌕</span><input aria-label="搜索知识库" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={searchScope === 'global' ? '搜索全部知识' : '搜索当前主题'} /></div>
+      <div className="knowledge-main-search"><div className="knowledge-search-scope"><button className={searchScope === 'topic' ? 'active' : ''} onClick={() => setSearchScope('topic')} type="button">主题内</button><button className={searchScope === 'global' ? 'active' : ''} onClick={() => setSearchScope('global')} type="button">全库</button></div><span>⌕</span><input aria-label="搜索知识库" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={searchScope === 'global' ? '搜索全部知识' : '搜索当前主题'} /></div>
       <div className="knowledge-hero-actions"><button onClick={() => setTopicCreateOpen(true)} type="button">新建主题</button><button className="primary" onClick={() => { setConversationPaths([]); setCaptureOpen(true); }} type="button">记一条</button></div>
     </section>
 
-    <section className="knowledge-topic-picker" aria-label="知识主题">
-      <span>主题</span>
-      <nav>{topics.map((topic) => {
-        const itemCount = 1 + workspace.knowledgeMetadata.filter((item) => item.status !== 'archived' && item.topicIds.includes(topic.id)).length;
-        return <button className={selectedTopic?.id === topic.id ? 'active' : ''} onClick={() => chooseTopic(topic)} title={topic.title} type="button" key={topic.id}><strong>{shortKnowledgeTopicTitle(topic.title)}</strong><small>{itemCount} 项</small></button>;
-      })}</nav>
-    </section>
-
-    <div className="knowledge-browse-head">
-      <nav aria-label="当前主题文档类型">{topicFilters.map((item) => <button className={filter === item.id ? 'active' : ''} onClick={() => chooseFilter(item.id)} type="button" key={item.id}>{item.label}</button>)}</nav>
-      <span>{query ? `${searchScope === 'global' ? '全库' : '当前主题'}找到 ${visibleItems.length} 条` : topicItems.length ? `${topicItems.length} 项` : ''}</span>
-    </div>
-
     <div className="knowledge-split-layout">
-      <section ref={feedRef} className="box knowledge-feed">
-        <BoxHeader title={query ? searchScope === 'global' ? '全库搜索结果' : '主题内搜索结果' : filter === 'all' ? '核心文档' : KNOWLEDGE_FILTERS.find((item) => item.id === filter)?.label ?? '文档'} />
-        {visibleItems.length === 0 ? <div className="knowledge-friendly-empty"><strong>{query ? '没有找到相关内容' : '这里还没有记录'}</strong><p>{query ? '换一个词试试，标题、正文和标签都可以搜索。' : '主题、结论和源头资料会在这里形成清晰的阅读路径。'}</p>{!query && <button onClick={() => setTopicCreateOpen(true)} type="button">创建第一个主题</button>}</div> : <>
-          {visibleCoreItems.map((item) => renderKnowledgeRow(item))}
-          {visibleProjectItems.length > 0 && <section className="knowledge-report-group"><button className="knowledge-report-toggle" aria-expanded={reportsOpen || Boolean(query)} disabled={Boolean(query)} onClick={() => setReportsOpen((value) => !value)} type="button"><span><strong>项目报告</strong><small>按编号排列，可搜索项目名</small></span><b>{visibleProjectItems.length} 份 {query ? '匹配' : reportsOpen ? '收起' : '展开'}</b></button>{(reportsOpen || Boolean(query)) && <div>{visibleProjectItems.map((item) => renderKnowledgeRow(item, true))}</div>}</section>}
-        </>}
+      <section ref={feedRef} className="box knowledge-feed knowledge-directory">
+        <BoxHeader title={query ? `${searchScope === 'global' ? '全库' : '主题内'}搜索 · ${visibleItems.length}` : '知识目录'} />
+        {query ? visibleItems.length === 0 ? <div className="knowledge-friendly-empty"><strong>没有找到相关内容</strong><p>换一个词试试，标题、正文和标签都可以搜索。</p></div> : <div className="knowledge-search-results">{visibleItems.map((item) => renderDirectoryItem(item))}</div> : topics.map((topic) => {
+          const expanded = selectedTopic?.id === topic.id;
+          const directoryItems = allKnowledgeItems.filter((item) => item.id === topic.id || item.topicIds.includes(topic.id));
+          const directItems = directoryItems.filter((item) => !isKnowledgeProjectReport(item) && item.type !== 'source');
+          const sourceItems = directoryItems.filter((item) => item.type === 'source' && !isKnowledgeProjectReport(item));
+          const projectItems = directoryItems.filter(isKnowledgeProjectReport);
+          return <section className={`knowledge-tree-topic ${expanded ? 'active' : ''}`} key={topic.id}>
+            <button className="knowledge-tree-topic-button" aria-expanded={expanded} onClick={() => chooseTopic(topic)} title={topic.title} type="button"><span>{expanded ? '⌄' : '›'}</span><strong>{shortKnowledgeTopicTitle(topic.title)}</strong><small>{directoryItems.length} 项</small></button>
+            {expanded && <div className="knowledge-tree-submenu">
+              {directItems.map((item) => renderDirectoryItem(item))}
+              {sourceItems.length > 0 && <section className="knowledge-tree-group"><button aria-expanded={sourcesOpen} onClick={() => setSourcesOpen((value) => !value)} type="button"><span>{sourcesOpen ? '⌄' : '›'}</span><strong>相关资料</strong><small>{sourceItems.length}</small></button>{sourcesOpen && <div>{sourceItems.map((item) => renderDirectoryItem(item, true))}</div>}</section>}
+              {projectItems.length > 0 && <section className="knowledge-tree-group"><button aria-expanded={reportsOpen} onClick={() => setReportsOpen((value) => !value)} type="button"><span>{reportsOpen ? '⌄' : '›'}</span><strong>项目报告</strong><small>{projectItems.length}</small></button>{reportsOpen && <div>{projectItems.map((item) => renderDirectoryItem(item, true))}</div>}</section>}
+            </div>}
+          </section>;
+        })}
       </section>
       <section ref={readerRef} className="box knowledge-reader">{!activeMetadata || !activeFile ? <Empty text="从左侧选择一项查看内容" /> : <>
       <div className="knowledge-reader-sticky"><div className="knowledge-reader-head"><span>{topicNameFor(activeMetadata)} / {knowledgeTypeLabel(activeMetadata.type)} · {formatTime(activeMetadata.updatedAt)}</span></div><div className="knowledge-reader-title"><div><h2>{activeMetadata.title}</h2><p>{activeMetadata.tags.slice(0, 5).map((tag) => `#${tag}`).join('  ')}</p></div><div className="knowledge-reader-actions">{activeOutline.length > 1 && <label className="knowledge-outline-select"><span>目录</span><select aria-label="本文目录" defaultValue="" onChange={(event) => { if (event.target.value) jumpToOutline(Number(event.target.value)); event.target.value = ''; }}><option value="">跳到章节…</option>{activeOutline.map((item, index) => <option value={index} key={`${item.title}-${index}`}>{item.level === 3 ? `　${item.title}` : item.title}</option>)}</select></label>}<button onClick={() => { setConversationPaths([activeMetadata.path]); setCaptureOpen(true); }} type="button">继续讨论</button>{activeMetadata.sourceUrl && <a href={activeMetadata.sourceUrl} target="_blank" rel="noreferrer">原始链接 ↗</a>}</div></div></div>
@@ -2192,7 +2164,7 @@ function KnowledgeBase({ workspace, refresh, setNotice }: { workspace: Workspace
     </>}</section>
     </div>
     {captureOpen && <AiWorkspaceModal mode="knowledge" workspace={workspace} initialTitle={activeMetadata && conversationPaths.length ? activeMetadata.title : '知识讨论'} initialKnowledgePaths={conversationPaths} onClose={() => setCaptureOpen(false)} onSaved={(path) => openKnowledgePath(path)} refresh={refresh} setNotice={setNotice} />}
-    {topicCreateOpen && <TopicCreateModal onClose={() => setTopicCreateOpen(false)} onCreated={(path) => { openKnowledgePath(path); setFilter('all'); setSearch(''); }} refresh={refresh} setNotice={setNotice} />}
+    {topicCreateOpen && <TopicCreateModal onClose={() => setTopicCreateOpen(false)} onCreated={(path) => { openKnowledgePath(path); setSearch(''); }} refresh={refresh} setNotice={setNotice} />}
   </div>;
 }
 
