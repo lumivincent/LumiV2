@@ -1955,13 +1955,16 @@ function MarketingBoard({ workspace, refresh, setNotice, setView }: { workspace:
   </div>;
 }
 
-type KnowledgeFilter = 'all' | 'source' | 'insight' | 'topic';
+type KnowledgeFilter = 'all' | KnowledgeItemType;
 
 const KNOWLEDGE_FILTERS: Array<{ id: KnowledgeFilter; label: string }> = [
-  { id: 'all', label: '全部' },
-  { id: 'topic', label: '主题' },
+  { id: 'all', label: '全部文档' },
+  { id: 'topic', label: '主题总览' },
   { id: 'insight', label: '结论' },
-  { id: 'source', label: '资料' },
+  { id: 'discussion', label: '总结' },
+  { id: 'source', label: '相关资料' },
+  { id: 'experiment', label: '复盘' },
+  { id: 'context', label: '资料包' },
 ];
 
 function knowledgeTypeLabel(type: KnowledgeItemType) {
@@ -1974,14 +1977,19 @@ function KnowledgeBase({ workspace, refresh, setNotice }: { workspace: Workspace
   const [topicCreateOpen, setTopicCreateOpen] = useState(false);
   const [conversationPaths, setConversationPaths] = useState<string[]>([]);
   const [search, setSearch] = useState('');
-  const [selectedPath, setSelectedPath] = useState(() => [...workspace.knowledgeMetadata].filter((item) => item.status !== 'archived').sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).find((item) => item.type === 'topic')?.path ?? workspace.knowledgeMetadata.find((item) => item.status !== 'archived')?.path ?? '');
+  const initialTopic = [...workspace.knowledgeMetadata].filter((item) => item.type === 'topic' && item.status !== 'archived').sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+  const [selectedTopicId, setSelectedTopicId] = useState(initialTopic?.id ?? '');
+  const [selectedPath, setSelectedPath] = useState(initialTopic?.path ?? '');
 
-  const typeOrder: Record<KnowledgeFilter, number> = { all: 0, topic: 1, insight: 2, source: 3 };
-  const allItems = workspace.knowledgeMetadata.filter((item) => item.status !== 'archived').sort((a, b) => (typeOrder[a.type as KnowledgeFilter] ?? 9) - (typeOrder[b.type as KnowledgeFilter] ?? 9) || b.updatedAt.localeCompare(a.updatedAt));
+  const topics = workspace.knowledgeMetadata.filter((item) => item.type === 'topic' && item.status !== 'archived').sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  const selectedTopic = topics.find((item) => item.id === selectedTopicId) ?? topics[0];
+  const typeOrder: Partial<Record<KnowledgeItemType, number>> = { topic: 0, insight: 1, discussion: 2, source: 3, experiment: 4, context: 5 };
+  const topicItems = workspace.knowledgeMetadata.filter((item) => item.status !== 'archived' && selectedTopic && (item.id === selectedTopic.id || item.topicIds.includes(selectedTopic.id))).sort((a, b) => (typeOrder[a.type] ?? 9) - (typeOrder[b.type] ?? 9) || b.updatedAt.localeCompare(a.updatedAt));
+  const topicFilters = KNOWLEDGE_FILTERS.filter((item) => item.id === 'all' || topicItems.some((entry) => entry.type === item.id));
   const query = search.trim().toLowerCase();
   const expandedTerms = query ? [...new Set([query, ...Object.entries(workspace.knowledgeAliases).flatMap(([term, aliases]) => [term, ...aliases].some((value) => value.toLowerCase().includes(query)) ? [term, ...aliases] : []).map((value) => value.toLowerCase())])] : [];
-  const visibleItems = allItems.filter((item) => {
-    if (!query && filter !== 'all' && item.type !== filter) return false;
+  const visibleItems = topicItems.filter((item) => {
+    if (filter !== 'all' && item.type !== filter) return false;
     if (!query) return true;
     const file = workspace.knowledgeFiles.find((entry) => entry.path === item.path);
     const text = [item.id, item.title, item.type, item.status, item.sourceUrl, item.reason, ...item.tags, file?.content].filter(Boolean).join('\n').toLowerCase();
@@ -1992,11 +2000,31 @@ function KnowledgeBase({ workspace, refresh, setNotice }: { workspace: Workspace
   const relatedKnowledgeIds = activeMetadata?.type === 'topic' ? [activeMetadata.id, ...workspace.knowledgeMetadata.filter((item) => item.topicIds.includes(activeMetadata.id)).map((item) => item.id)] : activeMetadata ? [activeMetadata.id] : [];
   const relatedTargets = [...new Set(workspace.knowledgeUsage.filter((usage) => usage.targetPath && usage.itemVersions.some((item) => relatedKnowledgeIds.includes(item.id))).map((usage) => usage.targetPath as string))];
 
+  useEffect(() => {
+    const item = workspace.knowledgeMetadata.find((entry) => entry.path === selectedPath);
+    const topicId = item?.type === 'topic' ? item.id : item?.topicIds.find((id) => topics.some((topic) => topic.id === id));
+    if (topicId && topicId !== selectedTopicId) setSelectedTopicId(topicId);
+  }, [selectedPath, selectedTopicId, topics, workspace.knowledgeMetadata]);
+
+  function openKnowledgePath(path: string) {
+    const item = workspace.knowledgeMetadata.find((entry) => entry.path === path);
+    const topicId = item?.type === 'topic' ? item.id : item?.topicIds.find((id) => topics.some((topic) => topic.id === id));
+    if (topicId) setSelectedTopicId(topicId);
+    setSelectedPath(path);
+  }
+
+  function chooseTopic(topic: KnowledgeMetadata) {
+    setSelectedTopicId(topic.id);
+    setSelectedPath(topic.path);
+    setFilter('all');
+    setSearch('');
+  }
+
   async function changeStatus(status: KnowledgeStatus) {
     if (!activeMetadata) return;
     try {
       await api({ action: 'updateKnowledgeStatus', path: activeMetadata.path, status });
-      if (status === 'archived') setSelectedPath('');
+      if (status === 'archived') setSelectedPath(activeMetadata.type === 'topic' ? '' : selectedTopic?.path ?? '');
       await refresh(true);
       setNotice({ tone: 'success', text: status === 'archived' ? '知识记录已归档' : '知识状态已更新' });
     } catch (error) {
@@ -2007,34 +2035,42 @@ function KnowledgeBase({ workspace, refresh, setNotice }: { workspace: Workspace
   return <div className="page knowledge-page">
     <section className="knowledge-hero">
       <div><h1>知识库</h1><p>先看主题建立全貌，再看最新结论，需要时直接打开源头资料。</p></div>
-      <label className="knowledge-main-search"><span>⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="搜索主题、结论或源头资料" /></label>
+      <label className="knowledge-main-search"><span>⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={selectedTopic ? `在「${selectedTopic.title}」中搜索` : '搜索知识文档'} /></label>
       <div className="knowledge-hero-actions"><button onClick={() => setTopicCreateOpen(true)} type="button">新建主题</button><button className="primary" onClick={() => { setConversationPaths([]); setCaptureOpen(true); }} type="button">记一条</button></div>
     </section>
 
+    <section className="knowledge-topic-picker" aria-label="知识主题">
+      <span>选择主题</span>
+      <nav>{topics.map((topic) => {
+        const documentCount = workspace.knowledgeMetadata.filter((item) => item.status !== 'archived' && item.topicIds.includes(topic.id)).length;
+        return <button className={selectedTopic?.id === topic.id ? 'active' : ''} onClick={() => chooseTopic(topic)} type="button" key={topic.id}><strong>{topic.title}</strong><small>{documentCount} 份文档</small></button>;
+      })}</nav>
+    </section>
+
     <div className="knowledge-browse-head">
-      <nav aria-label="知识筛选">{KNOWLEDGE_FILTERS.map((item) => <button className={filter === item.id && !query ? 'active' : ''} onClick={() => { setFilter(item.id); setSearch(''); }} type="button" key={item.id}>{item.label}</button>)}</nav>
-      <span>{query ? `找到 ${visibleItems.length} 条` : allItems.length ? `共 ${visibleItems.length} 条` : ''}</span>
+      <nav aria-label="当前主题文档类型">{topicFilters.map((item) => <button className={filter === item.id ? 'active' : ''} onClick={() => setFilter(item.id)} type="button" key={item.id}>{item.label}</button>)}</nav>
+      <span>{query ? `找到 ${visibleItems.length} 条` : topicItems.length ? `当前主题共 ${topicItems.length} 项` : ''}</span>
     </div>
 
     <div className="knowledge-split-layout">
       <section className="box knowledge-feed">
-        <BoxHeader title={query ? '搜索结果' : filter === 'all' ? '知识入口' : KNOWLEDGE_FILTERS.find((item) => item.id === filter)?.label ?? '记录'} />
+        <BoxHeader title={query ? '搜索结果' : filter === 'all' ? selectedTopic?.title ?? '主题文档' : KNOWLEDGE_FILTERS.find((item) => item.id === filter)?.label ?? '记录'} />
         {visibleItems.length === 0 ? <div className="knowledge-friendly-empty"><strong>{query ? '没有找到相关内容' : '这里还没有记录'}</strong><p>{query ? '换一个词试试，标题、正文和标签都可以搜索。' : '主题、结论和源头资料会在这里形成清晰的阅读路径。'}</p>{!query && <button onClick={() => setTopicCreateOpen(true)} type="button">创建第一个主题</button>}</div> : visibleItems.map((item) => {
           const file = workspace.knowledgeFiles.find((entry) => entry.path === item.path);
           const preview = (stripTitle(file?.content ?? '').split(/\n\s*\n/).map((paragraph) => paragraph.trim()).find((paragraph) => paragraph && !/^(#{1,6}\s|[-*]\s|\|)/.test(paragraph)) ?? '').replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').replace(/[`*_>]/g, '').trim().slice(0, 150);
-          return <button className={`knowledge-feed-row ${selectedPath === item.path ? 'active' : ''}`} onClick={() => setSelectedPath(item.path)} type="button" key={item.id}><span className={`knowledge-kind ${item.type}`}>{knowledgeTypeLabel(item.type)}</span><div><strong>{item.title}</strong><p>{preview || '打开查看完整内容'}</p>{item.tags.length > 0 && <small>{item.tags.slice(0, 3).map((tag) => `#${tag}`).join('  ')}</small>}</div></button>;
+          return <button className={`knowledge-feed-row ${selectedPath === item.path ? 'active' : ''}`} onClick={() => openKnowledgePath(item.path)} type="button" key={item.id}><span className={`knowledge-kind ${item.type}`}>{knowledgeTypeLabel(item.type)}</span><div><strong>{item.title}</strong><p>{preview || '打开查看完整内容'}</p>{item.tags.length > 0 && <small>{item.tags.slice(0, 3).map((tag) => `#${tag}`).join('  ')}</small>}</div></button>;
         })}
       </section>
       <section className="box knowledge-reader">{!activeMetadata || !activeFile ? <Empty text="从左侧选择一项查看内容" /> : <>
       <div className="knowledge-reader-head"><span>{knowledgeTypeLabel(activeMetadata.type)} · {formatTime(activeMetadata.updatedAt)}</span></div>
       <div className="knowledge-reader-title"><div><h2>{activeMetadata.title}</h2>{activeMetadata.tags.length > 0 && <p>{activeMetadata.tags.map((tag) => `#${tag}`).join('  ')}</p>}</div><div className="knowledge-reader-actions"><button onClick={() => { setConversationPaths([activeMetadata.path]); setCaptureOpen(true); }} type="button">围绕它继续讨论</button>{activeMetadata.sourceUrl && <a href={activeMetadata.sourceUrl} target="_blank" rel="noreferrer">查看原始链接 ↗</a>}</div></div>
-      <MarkdownView content={stripTitle(activeFile.content ?? '')} className="knowledge-document" sourcePath={activeMetadata.path} onKnowledgeLink={setSelectedPath} linksNewTab />
+      <MarkdownView content={stripTitle(activeFile.content ?? '')} className="knowledge-document" sourcePath={activeMetadata.path} onKnowledgeLink={openKnowledgePath} linksNewTab />
       {relatedTargets.length > 0 && <section className="knowledge-related-work"><div><strong>相关工作</strong><span>这些产出留在原工作区，这里仅建立关联。</span></div>{relatedTargets.map((path) => { const file = workspace.outputs.find((item) => item.path === path); const label = path.startsWith('outputs/twitter/') ? '内容' : path.startsWith('outputs/assets/') ? '素材' : path.startsWith('outputs/documents/') ? '分析' : '工作记录'; return <div key={path}><span>{label}</span><strong>{file ? displayName(file) : path.split('/').at(-1)}</strong><small>{file ? formatTime(file.updatedAt) : ''}</small></div>; })}</section>}
       <details className="knowledge-record-info"><summary>记录信息</summary><p>{activeMetadata.id} · 版本 {activeMetadata.version}</p><button onClick={() => changeStatus('archived')} type="button">归档这条记录</button></details>
     </>}</section>
     </div>
-    {captureOpen && <AiWorkspaceModal mode="knowledge" workspace={workspace} initialTitle={activeMetadata && conversationPaths.length ? activeMetadata.title : '知识讨论'} initialKnowledgePaths={conversationPaths} onClose={() => setCaptureOpen(false)} onSaved={(path) => setSelectedPath(path)} refresh={refresh} setNotice={setNotice} />}
-    {topicCreateOpen && <TopicCreateModal onClose={() => setTopicCreateOpen(false)} onCreated={(path) => { setSelectedPath(path); setFilter('topic'); setSearch(''); }} refresh={refresh} setNotice={setNotice} />}
+    {captureOpen && <AiWorkspaceModal mode="knowledge" workspace={workspace} initialTitle={activeMetadata && conversationPaths.length ? activeMetadata.title : '知识讨论'} initialKnowledgePaths={conversationPaths} onClose={() => setCaptureOpen(false)} onSaved={openKnowledgePath} refresh={refresh} setNotice={setNotice} />}
+    {topicCreateOpen && <TopicCreateModal onClose={() => setTopicCreateOpen(false)} onCreated={(path) => { openKnowledgePath(path); setFilter('all'); setSearch(''); }} refresh={refresh} setNotice={setNotice} />}
   </div>;
 }
 
