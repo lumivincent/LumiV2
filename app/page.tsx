@@ -1996,7 +1996,7 @@ function KnowledgeBase({ workspace, refresh, setNotice }: { workspace: Workspace
   const [search, setSearch] = useState('');
   const [searchScope, setSearchScope] = useState<'topic' | 'global'>('topic');
   const [reportsOpen, setReportsOpen] = useState(false);
-  const [sourcesOpen, setSourcesOpen] = useState(true);
+  const [sourcesOpen, setSourcesOpen] = useState(false);
   const feedRef = useRef<HTMLElement>(null);
   const readerRef = useRef<HTMLElement>(null);
   const activeRowRef = useRef<HTMLButtonElement>(null);
@@ -2094,7 +2094,7 @@ function KnowledgeBase({ workspace, refresh, setNotice }: { workspace: Workspace
     setSearch('');
     setSearchScope('topic');
     setReportsOpen(false);
-    setSourcesOpen(true);
+    setSourcesOpen(false);
     openKnowledgePath(topic.path);
   }
 
@@ -2109,12 +2109,20 @@ function KnowledgeBase({ workspace, refresh, setNotice }: { workspace: Workspace
     return topic ? shortKnowledgeTopicTitle(topic.title) : '待归类';
   }
 
+  function directoryTitleFor(item: KnowledgeMetadata) {
+    if (item.type === 'topic') return '主题总览';
+    const topic = topics.find((entry) => item.topicIds.includes(entry.id));
+    const prefix = topic ? shortKnowledgeTopicTitle(topic.title) : '';
+    const title = item.title.replace(/\s*独立营销研究$/, '');
+    return prefix && title.startsWith(prefix) ? title.slice(prefix.length).replace(/^[\s：:/—-]+/, '') || title : title;
+  }
+
   function renderDirectoryItem(item: KnowledgeMetadata, nested = false) {
     const active = selectedPath === item.path;
     const code = /^RC-\d+/.exec(item.title)?.[0];
     return <button ref={active ? activeRowRef : undefined} className={`knowledge-tree-item ${nested ? 'nested' : ''} ${active ? 'active' : ''}`} onClick={() => openKnowledgePath(item.path)} type="button" key={item.id}>
       <span>{code ?? knowledgeTypeLabel(item.type)}</span>
-      <div><strong>{item.title.replace(/\s*独立营销研究$/, '')}</strong><small>{searchScope === 'global' && query ? `${topicNameFor(item)} · ` : ''}{knowledgeTypeLabel(item.type)}</small></div>
+      <div><strong>{directoryTitleFor(item)}</strong>{searchScope === 'global' && query && <small>{topicNameFor(item)}</small>}</div>
     </button>;
   }
 
