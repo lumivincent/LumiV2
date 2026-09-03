@@ -55,6 +55,39 @@ async function applyDeploymentWorkspaceSync() {
   console.log(`[workspace] 一次性本地数据同步已完成：${syncId}`);
 }
 
+async function mergeBundledKnowledgeMetadata() {
+  if (workspaceRoot === appRoot) return;
+  const bundledPath = join(appRoot, 'data', 'knowledge-metadata.json');
+  const persistedPath = join(workspaceRoot, 'data', 'knowledge-metadata.json');
+  if (!(await exists(bundledPath)) || !(await exists(persistedPath))) return;
+
+  const bundled = JSON.parse(await readFile(bundledPath, 'utf8'));
+  const persisted = JSON.parse(await readFile(persistedPath, 'utf8'));
+  if (!Array.isArray(bundled) || !Array.isArray(persisted)) return;
+
+  let changed = false;
+  const merged = [...persisted];
+  for (const seed of bundled) {
+    if (!seed || typeof seed !== 'object') continue;
+    const index = merged.findIndex((item) => item && typeof item === 'object' && ((seed.path && item.path === seed.path) || (seed.id && item.id === seed.id)));
+    if (index === -1) {
+      merged.push(seed);
+      changed = true;
+      continue;
+    }
+    const current = merged[index];
+    if (seed.path && current.path === seed.path && typeof current.id === 'string' && current.id.startsWith('RECOVERED-')) {
+      merged[index] = seed;
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    await writeFile(persistedPath, `${JSON.stringify(merged, null, 2)}\n`, 'utf8');
+    console.log(`[workspace] 已补充 ${merged.length - persisted.length} 条知识 metadata，并修复自动恢复条目的主题关系`);
+  }
+}
+
 async function prepareStandaloneAssets() {
   const standaloneRoot = join(appRoot, '.next', 'standalone');
   const staticSource = join(appRoot, '.next', 'static');
@@ -65,6 +98,7 @@ async function prepareStandaloneAssets() {
 
 await initializeWorkspace();
 await applyDeploymentWorkspaceSync();
+await mergeBundledKnowledgeMetadata();
 await prepareStandaloneAssets();
 
 const serverPath = join(appRoot, '.next', 'standalone', 'server.js');

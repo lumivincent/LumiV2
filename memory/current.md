@@ -57,7 +57,7 @@ V2 仍处于 Early Prototype。现阶段的运营主线是持续理解产品变�
 
 - Railway 使用 Next.js standalone 单服务部署，运行时监听平台提供的 `PORT` 和 `0.0.0.0`
 - 线上工作区统一使用 `WORKSPACE_ROOT=/data/workspace`，Railway Volume 挂载在 `/data`
-- 空 Volume 首次启动时从部署包初始化项目记忆、产品资料、知识库、记录和 metadata；后续启动只补充缺失文件，不覆盖线上数据
+- 空 Volume 首次启动时从部署包初始化项目记忆、产品资料、知识库、记录和 metadata；后续启动只补充缺失文件，并按稳定 ID / 路径合并新增知识 metadata、修复无主题关系的自动恢复项，不覆盖线上已有编辑
 - Railway 线上数据以 Volume 为准，不自动回写 GitHub；GitHub 保存代码和首次初始化内容，Volume 需要独立备份
 - 线上访问通过 `APP_ACCESS_USERNAME` 与 `APP_ACCESS_PASSWORD` 提供基础保护；未设置密码时不启用保护
 - Railway 不使用本机代理变量，OpenAI 请求直接使用服务端 `OPENAI_API_KEY`
